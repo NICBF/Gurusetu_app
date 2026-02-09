@@ -66,5 +66,4 @@ src/
 
 ## Repository
 
-Independent from the main Gurusetu web/backend repo.  
-Intended to be pushed to: [NICBF/Gurusetu_app](https://github.com/NICBF/Gurusetu_app).
+[NICBF/Gurusetu_app](https://github.com/NICBF/Gurusetu_app)
