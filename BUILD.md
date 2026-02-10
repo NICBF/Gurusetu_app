@@ -61,6 +61,8 @@ This hits `EXPO_PUBLIC_API_URL` from your `.env` (e.g. `https://gurusetu.iitm.ac
 
 ## Android: Signed APK (internal distribution)
 
+**Pre-check, build command, and where to get the APK:** see **[docs/ANDROID_BUILD.md](./docs/ANDROID_BUILD.md)**.
+
 **Full steps (build, share, install, updates):** see **[INTERNAL_DEPLOYMENT.md](./INTERNAL_DEPLOYMENT.md)**.
 
 1. **Install EAS CLI** (Expo Application Services):
