@@ -5,7 +5,29 @@
 import React from 'react';
 import { Text, StyleSheet, TextStyle } from 'react-native';
 
-type IconName = 'school' | 'cast_for_education' | 'shield_person' | 'contact_support' | 'person';
+type IconName =
+  | 'school'
+  | 'cast_for_education'
+  | 'shield_person'
+  | 'contact_support'
+  | 'person'
+  | 'search'
+  | 'psychology'
+  | 'biotech'
+  | 'grading'
+  | 'groups'
+  | 'devices'
+  | 'trending_up'
+  | 'auto_awesome'
+  | 'hub'
+  | 'verified_user'
+  | 'home'
+  | 'dashboard'
+  | 'live_tv'
+  | 'notifications'
+  | 'expand_more'
+  | 'star'
+  | 'play_arrow';
 
 const iconMap: Record<IconName, string> = {
   school: '🎓',
@@ -13,6 +35,23 @@ const iconMap: Record<IconName, string> = {
   shield_person: '🛡️',
   contact_support: '💬',
   person: '👤',
+  search: '🔍',
+  psychology: '🧠',
+  biotech: '🧬',
+  grading: '📋',
+  groups: '👥',
+  devices: '📱',
+  trending_up: '📈',
+  auto_awesome: '✨',
+  hub: '🔗',
+  verified_user: '✅',
+  home: '🏠',
+  dashboard: '📊',
+  live_tv: '📺',
+  notifications: '🔔',
+  expand_more: '⬇️',
+  star: '⭐',
+  play_arrow: '▶️',
 };
 
 interface IconProps {

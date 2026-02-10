@@ -1,51 +1,54 @@
-/**
- * Floating chatbot button that opens a side panel modal (like website)
- */
 import React, { useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Modal, Dimensions, Text } from 'react-native';
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  Text,
+  Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import ChatbotScreen from '../screens/ChatbotScreen';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 const COLORS = {
-  primary: '#0061A4',
+  primary: '#4F46E5',
   onPrimary: '#FFFFFF',
+  surface: '#FDFBFF',
+  onSurface: '#111827',
+  border: '#E5E7EB',
 };
 
-export default function ChatbotFloatingButton() {
+const ChatbotFloatingButton: React.FC = () => {
   const [visible, setVisible] = useState(false);
 
   return (
     <>
+      {/* Floating FAB */}
       <TouchableOpacity
-        style={styles.floatingButton}
+        style={styles.fab}
         onPress={() => setVisible(true)}
         activeOpacity={0.8}
       >
-        <View style={styles.buttonContent}>
-          <View style={styles.iconCircle}>
-            <View style={styles.iconDot} />
-          </View>
-        </View>
+        <Ionicons name="chatbubble-ellipses" size={24} color={COLORS.onPrimary} />
       </TouchableOpacity>
 
+      {/* Bottom sheet modal with ChatbotScreen */}
       <Modal
         visible={visible}
         animationType="slide"
-        transparent={true}
+        transparent
         onRequestClose={() => setVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.sidePanel}>
-            <View style={styles.panelHeader}>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setVisible(false)}
-              >
-                <Text style={styles.closeIconText}>✕</Text>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Chat Support</Text>
+              <TouchableOpacity onPress={() => setVisible(false)}>
+                <Ionicons name="close" size={22} color={COLORS.onSurface} />
               </TouchableOpacity>
             </View>
-            <View style={styles.panelContent}>
+            <View style={styles.separator} />
+            <View style={styles.sheetContent}>
               <ChatbotScreen />
             </View>
           </View>
@@ -53,88 +56,59 @@ export default function ChatbotFloatingButton() {
       </Modal>
     </>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  floatingButton: {
+  fab: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
+    bottom: 30,
+    right: 20,
+    backgroundColor: COLORS.primary,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: Platform.OS === 'android' ? 0.3 : 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
     zIndex: 1000,
-  },
-  buttonContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: COLORS.onPrimary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iconDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.onPrimary,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
-  sidePanel: {
-    width: Math.min(SCREEN_WIDTH * 0.9, 400),
-    height: SCREEN_HEIGHT,
-    backgroundColor: '#FDFBFF',
-    shadowColor: '#000',
-    shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  sheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    overflow: 'hidden',
   },
-  panelHeader: {
-    height: 56,
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    paddingVertical: 12,
   },
-  closeButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.onSurface,
   },
-  closeIcon: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+  separator: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    opacity: 0.6,
   },
-  closeIconText: {
-    fontSize: 24,
-    color: '#666',
-    fontWeight: '300',
-  },
-  panelContent: {
-    flex: 1,
+  sheetContent: {
+    height: 480,
   },
 });
+
+export default ChatbotFloatingButton;
+
