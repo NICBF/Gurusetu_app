@@ -2,7 +2,7 @@
  * Course detail with full info + video player. Shows intro video if no lectures exist.
  * Adapted from HTML design: dark theme, all course details, embedded player.
  */
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,17 +13,18 @@ import {
   Image,
   TextInput,
   Alert,
+  Linking,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/AppNavigator';
-import { Video, AVPlaybackStatus } from 'expo-av';
-import { Linking } from 'react-native';
 import api from '../services/api';
-import { getVideoPlayableUrl, isStreamableInApp } from '../utils/videoUrl';
+import { getVideoPlayableUrl } from '../utils/videoUrl';
+import { getDisplayableImageUrl } from '../utils/mediaUrl';
 import { API_BASE } from '../config';
 import Icon from '../components/Icon';
+import { CourseVideoPlayer } from './VideoPlayerScreen';
 
 const COLORS = {
   bg: '#0a0e27',
@@ -39,15 +40,6 @@ const COLORS = {
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<RootStackParamList, 'CourseDetail'>;
-
-const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-}
 
 interface CourseData {
   course_id: string;
@@ -69,23 +61,13 @@ export default function CourseDetailScreen() {
   const route = useRoute<Route>();
   const navigation = useNavigation<Nav>();
   const { courseId } = route.params;
-  const videoRef = useRef<Video>(null);
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [videoStatus, setVideoStatus] = useState<AVPlaybackStatus | null>(null);
-  const [videoLoading, setVideoLoading] = useState(false);
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
-
-  const isLoaded = videoStatus?.isLoaded ?? false;
-  const position = isLoaded ? (videoStatus.positionMillis ?? 0) / 1000 : 0;
-  const duration = isLoaded ? (videoStatus.durationMillis ?? 0) / 1000 : 0;
-  const playing = isLoaded ? (videoStatus.isPlaying ?? false) : false;
-  const rate = isLoaded ? (videoStatus.rate ?? 1) : 1;
-  const progress = duration > 0 ? (position / duration) * 100 : 0;
+  const [instructorPhotoError, setInstructorPhotoError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +76,10 @@ export default function CourseDetailScreen() {
         console.log('[CourseDetail] Fetching course:', courseId);
         const { data } = await api.get(`/courses/${courseId}`);
         console.log('[CourseDetail] Course data received:', data);
-        if (!cancelled) setCourse(data as CourseData);
+        if (!cancelled) {
+          setCourse(data as CourseData);
+          setInstructorPhotoError(false);
+        }
       } catch (e) {
         console.error('[CourseDetail] Error:', e);
         if (!cancelled) {
@@ -109,52 +94,6 @@ export default function CourseDetailScreen() {
     })();
     return () => { cancelled = true; };
   }, [courseId]);
-
-  const onVideoStatusUpdate = useCallback((s: AVPlaybackStatus) => {
-    setVideoStatus(s);
-    if (s.isLoaded) {
-      setVideoLoading(false);
-    }
-  }, []);
-
-  const togglePlay = useCallback(async () => {
-    if (!videoRef.current || !isLoaded) return;
-    try {
-      if (playing) {
-        await videoRef.current.pauseAsync();
-      } else {
-        await videoRef.current.playAsync();
-      }
-    } catch (e) {
-      console.error('[CourseDetail] Play error:', e);
-    }
-  }, [playing, isLoaded]);
-
-  const seek = useCallback(
-    async (frac: number) => {
-      if (!videoRef.current || !isLoaded || duration <= 0) return;
-      const t = Math.max(0, Math.min(duration, frac * duration));
-      try {
-        await videoRef.current.setPositionAsync(t * 1000);
-      } catch (e) {
-        console.error('[CourseDetail] Seek error:', e);
-      }
-    },
-    [isLoaded, duration]
-  );
-
-  const setPlaybackRate = useCallback(
-    async (r: number) => {
-      if (!videoRef.current || !isLoaded) return;
-      try {
-        await videoRef.current.setRateAsync(r, true);
-        setShowSpeedMenu(false);
-      } catch (e) {
-        console.error('[CourseDetail] Rate error:', e);
-      }
-    },
-    [isLoaded]
-  );
 
   const handleSubmitReview = async () => {
     if (rating === 0) {
@@ -185,108 +124,34 @@ export default function CourseDetailScreen() {
   if (loading) return <ActivityIndicator style={styles.centered} size="large" color={COLORS.primary} />;
   if (error || !course) return <Text style={styles.error}>{error || 'Course not found'}</Text>;
 
-  const videoUri = course.intro_video_path ? getVideoPlayableUrl(course.intro_video_path) : null;
-  const canPlayInApp = videoUri && isStreamableInApp(videoUri);
-  const hasExternalVideo = course.intro_video_path && videoUri && !canPlayInApp;
+  const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
+  const introVideoUri = course.intro_video_path
+    ? getVideoPlayableUrl(course.intro_video_path)
+    : null;
   let thumbnail = course.thumbnail_url;
   if (thumbnail && !thumbnail.startsWith('http')) {
-    const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
     thumbnail = base ? `${base}${thumbnail.startsWith('/') ? '' : '/'}${thumbnail}` : null;
   }
+  thumbnail = getDisplayableImageUrl(thumbnail) ?? thumbnail;
+  let instructorPhotoUrl = course.instructor_photo_url;
+  if (instructorPhotoUrl && !instructorPhotoUrl.startsWith('http')) {
+    instructorPhotoUrl = base ? `${base}${instructorPhotoUrl.startsWith('/') ? '' : '/'}${instructorPhotoUrl}` : undefined;
+  }
+  instructorPhotoUrl = getDisplayableImageUrl(instructorPhotoUrl ?? '') ?? instructorPhotoUrl;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Video Player or External Video Link */}
-      {videoUri && canPlayInApp ? (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+    >
+      {/* Intro video – inline expo-av player */}
+      {introVideoUri ? (
         <View style={styles.videoContainer}>
-          <Video
-            ref={videoRef}
-            source={{ uri: videoUri }}
-            style={styles.video}
-            useNativeControls={false}
-            resizeMode="contain"
-            onPlaybackStatusUpdate={onVideoStatusUpdate}
-            onLoadStart={() => setVideoLoading(true)}
+          <CourseVideoPlayer
+            videoUri={introVideoUri}
+            title={course.title}
+            showHeader={false}
           />
-          {videoLoading && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-            </View>
-          )}
-
-          {!videoLoading && (
-            <TouchableOpacity
-              style={[styles.playCenter, !playing && styles.playCenterVisible]}
-              onPress={togglePlay}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.playIcon}>{playing ? '⏸' : '▶'}</Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.controlsOverlay}>
-            <TouchableOpacity
-              style={styles.progressContainer}
-              activeOpacity={1}
-              onPress={(e) => {
-                const { locationX } = e.nativeEvent;
-                const w = e.nativeEvent.target.measure ? 300 : 300;
-                if (w > 0) seek(locationX / w);
-              }}
-            >
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${progress}%` }]} />
-              </View>
-            </TouchableOpacity>
-            <View style={styles.controlsRow}>
-              <TouchableOpacity style={styles.controlBtn} onPress={togglePlay}>
-                <Text style={styles.controlBtnText}>{playing ? '⏸' : '▶'}</Text>
-              </TouchableOpacity>
-              <Text style={styles.timeText}>
-                {formatTime(position)} / {formatTime(duration)}
-              </Text>
-              <View style={styles.speedWrap}>
-                <TouchableOpacity
-                  style={styles.speedBtn}
-                  onPress={() => setShowSpeedMenu(!showSpeedMenu)}
-                >
-                  <Text style={styles.speedBtnText}>{rate.toFixed(2)}X</Text>
-                </TouchableOpacity>
-                {showSpeedMenu && (
-                  <View style={styles.speedMenu}>
-                    {SPEEDS.map((r) => (
-                      <TouchableOpacity
-                        key={r}
-                        style={[styles.speedOption, Math.abs(rate - r) < 0.01 && styles.speedOptionActive]}
-                        onPress={() => setPlaybackRate(r)}
-                      >
-                        <Text style={styles.speedOptionText}>{r}X</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        </View>
-      ) : hasExternalVideo ? (
-        <View style={styles.externalVideoContainer}>
-          {thumbnail && (
-            <Image source={{ uri: thumbnail }} style={styles.externalVideoThumbnail} />
-          )}
-          <View style={styles.externalVideoInfo}>
-            <Text style={styles.externalVideoTitle}>Introduction Video</Text>
-            <Text style={styles.externalVideoNote}>
-              This video is hosted externally. Click below to watch.
-            </Text>
-            <TouchableOpacity
-              style={styles.externalVideoBtn}
-              onPress={() => videoUri && Linking.openURL(videoUri)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.externalVideoBtnText}>Watch Video</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       ) : null}
 
@@ -297,8 +162,12 @@ export default function CourseDetailScreen() {
         {/* Instructor Info */}
         <View style={styles.instructorInfo}>
           <View style={styles.instructorAvatar}>
-            {course.instructor_photo_url ? (
-              <Image source={{ uri: course.instructor_photo_url }} style={styles.instructorPhoto} />
+            {instructorPhotoUrl && !instructorPhotoError ? (
+              <Image
+                source={{ uri: instructorPhotoUrl }}
+                style={styles.instructorPhoto}
+                onError={() => setInstructorPhotoError(true)}
+              />
             ) : (
               <Text style={styles.instructorIcon}>👨‍🏫</Text>
             )}
@@ -364,14 +233,30 @@ export default function CourseDetailScreen() {
           </View>
         )}
 
-        {/* View Videos Button */}
-        <TouchableOpacity
-          style={styles.viewVideosBtn}
-          onPress={() => navigation.navigate('VideoList', { courseId })}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.viewVideosBtnText}>View All Recorded Videos</Text>
-        </TouchableOpacity>
+        {/* Additional Resources */}
+        {course.resources && course.resources.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Additional Resources</Text>
+            {course.resources.map((res, idx) => {
+              const hasLink = !!res.link;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.resourceItem}
+                  activeOpacity={hasLink ? 0.7 : 1}
+                  onPress={() => {
+                    if (hasLink) Linking.openURL(res.link).catch(() => undefined);
+                  }}
+                  disabled={!hasLink}
+                >
+                  <Text style={[styles.resourceText, hasLink && styles.resourceLink]}>
+                    {res.label || res.link || 'Resource'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {/* Submit Review Section */}
         <View style={styles.reviewSection}>
@@ -634,18 +519,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  viewVideosBtn: {
-    backgroundColor: COLORS.primary,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 20,
+  resourceItem: {
+    paddingVertical: 6,
   },
-  viewVideosBtnText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '600',
+  resourceText: {
+    color: COLORS.white80,
+    fontSize: 14,
+  },
+  resourceLink: {
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
   },
   reviewSection: {
     marginTop: 20,
@@ -704,6 +587,22 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  externalVideoThumbnailPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.bgGradient,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  externalVideoThumbnailIcon: {
+    fontSize: 48,
+    color: COLORS.primary,
+    marginBottom: 8,
+  },
+  externalVideoThumbnailText: {
+    fontSize: 14,
+    color: COLORS.white60,
   },
   externalVideoInfo: {
     ...StyleSheet.absoluteFillObject,

@@ -15,20 +15,28 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ContactScreen from '../screens/ContactScreen';
 import ChatbotScreen from '../screens/ChatbotScreen';
+import LearnerHomeScreen from '../screens/LearnerHomeScreen';
+import LearnerAllCoursesScreen from '../screens/LearnerAllCoursesScreen';
+import LearnerProfileScreen from '../screens/LearnerProfileScreen';
+import ProfileSettingsScreen from '../screens/ProfileSettingsScreen';
 import FacultyDashboard from '../screens/FacultyDashboard';
 import StudentDashboard from '../screens/StudentDashboard';
 import CourseListScreen from '../screens/CourseListScreen';
-import CourseDetailScreen from '../screens/CourseDetailScreen';
+import LearnerCourseViewScreen from '../screens/LearnerCourseViewScreen';
 import VideoListScreen from '../screens/VideoListScreen';
 import VideoPlayerScreen from '../screens/VideoPlayerScreen';
-import NotificationsScreen from '../screens/NotificationsScreen';
-import ChatbotFloatingButton from '../components/ChatbotFloatingButton';
+import LearnerNotificationsScreen from '../screens/LearnerNotificationsScreen';
+import LearnerLiveClassScreen from '../screens/LearnerLiveClassScreen';
+import Icon from '../components/Icon';
 export type RootStackParamList = {
   Intro: { standalone?: boolean } | undefined;
   Login: undefined;
   Register: undefined;
   Contact: undefined;
   Chatbot: undefined;
+  LearnerHome: undefined;
+  LearnerAllCourses: { vertical?: string } | undefined;
+  LearnerProfile: undefined;
   FacultyDashboard: undefined;
   StudentDashboard: undefined;
   CourseList: undefined;
@@ -36,6 +44,8 @@ export type RootStackParamList = {
   VideoList: { courseId: string };
   VideoPlayer: { videoUri: string; title: string };
   Notifications: undefined;
+  LiveClasses: undefined;
+  ProfileSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -43,17 +53,31 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 function FacultyStack() {
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Navigator screenOptions={{ headerShown: true }}>
+      <Stack.Navigator
+        screenOptions={({ navigation }) => ({
+          headerShown: true,
+          headerRight: () => (
+            <View style={{ marginRight: 8 }}>
+              <Icon
+                name="contact_support"
+                size={22}
+                color="#0061A4"
+                onPress={() => navigation.navigate('Chatbot')}
+              />
+            </View>
+          ),
+        })}
+      >
         <Stack.Screen name="FacultyDashboard" component={FacultyDashboard} options={{ title: 'Faculty Dashboard' }} />
         <Stack.Screen name="CourseList" component={CourseListScreen} options={{ title: 'My Courses' }} />
-        <Stack.Screen name="CourseDetail" component={CourseDetailScreen} options={{ title: 'Course' }} />
+        <Stack.Screen name="CourseDetail" component={LearnerCourseViewScreen} options={{ title: 'Course' }} />
         <Stack.Screen name="VideoList" component={VideoListScreen} options={{ title: 'Recorded Videos' }} />
         <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ title: 'Video Player', headerShown: true, headerStyle: { backgroundColor: '#0a0e27' }, headerTintColor: '#ffffff' }} />
-        <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
+        <Stack.Screen name="Notifications" component={LearnerNotificationsScreen} options={{ title: 'Notifications' }} />
+        <Stack.Screen name="LiveClasses" component={LearnerLiveClassScreen} options={{ title: 'Live Classes', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }} />
         <Stack.Screen name="Contact" component={ContactScreen} options={{ title: 'Contact Support' }} />
         <Stack.Screen name="Chatbot" component={ChatbotScreen} options={{ title: 'Chat Support' }} />
       </Stack.Navigator>
-      <ChatbotFloatingButton />
     </View>
   );
 }
@@ -61,17 +85,51 @@ function FacultyStack() {
 function StudentStack() {
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Navigator screenOptions={{ headerShown: true }}>
+      <Stack.Navigator
+        screenOptions={({ navigation }) => ({
+          headerShown: true,
+          headerRight: () => (
+            <View style={{ marginRight: 8 }}>
+              <Icon
+                name="contact_support"
+                size={22}
+                color="#0061A4"
+                onPress={() => navigation.navigate('Chatbot')}
+              />
+            </View>
+          ),
+        })}
+      >
+        <Stack.Screen
+          name="LearnerHome"
+          component={LearnerHomeScreen}
+          options={{ title: 'GuruSetu', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }}
+        />
+        <Stack.Screen
+          name="LearnerAllCourses"
+          component={LearnerAllCoursesScreen}
+          options={{ title: 'Courses', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }}
+        />
+        <Stack.Screen
+          name="LearnerProfile"
+          component={LearnerProfileScreen}
+          options={{ title: 'Profile', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }}
+        />
+        <Stack.Screen
+          name="ProfileSettings"
+          component={ProfileSettingsScreen}
+          options={{ title: 'Profile Settings', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }}
+        />
         <Stack.Screen name="StudentDashboard" component={StudentDashboard} options={{ title: 'My Learning' }} />
         <Stack.Screen name="CourseList" component={CourseListScreen} options={{ title: 'My Courses' }} />
-        <Stack.Screen name="CourseDetail" component={CourseDetailScreen} options={{ title: 'Course' }} />
+        <Stack.Screen name="CourseDetail" component={LearnerCourseViewScreen} options={{ title: 'Course' }} />
         <Stack.Screen name="VideoList" component={VideoListScreen} options={{ title: 'Videos' }} />
         <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ title: 'Video Player', headerShown: true, headerStyle: { backgroundColor: '#0a0e27' }, headerTintColor: '#ffffff' }} />
-        <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
+        <Stack.Screen name="Notifications" component={LearnerNotificationsScreen} options={{ title: 'Notifications' }} />
+        <Stack.Screen name="LiveClasses" component={LearnerLiveClassScreen} options={{ title: 'Live Classes', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }} />
         <Stack.Screen name="Contact" component={ContactScreen} options={{ title: 'Contact Support' }} />
         <Stack.Screen name="Chatbot" component={ChatbotScreen} options={{ title: 'Chat Support' }} />
       </Stack.Navigator>
-      <ChatbotFloatingButton />
     </View>
   );
 }

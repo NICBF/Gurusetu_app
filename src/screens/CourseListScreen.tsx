@@ -1,5 +1,5 @@
 /**
- * All Courses screen: Shows all available courses in a grid layout matching HTML design.
+ * All Courses screen: List view with full-width cards and adaptable thumbnail size.
  * Dark theme with course cards showing thumbnail, title, description, instructor info, and action buttons.
  */
 import React, { useEffect, useState } from 'react';
@@ -11,8 +11,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  ScrollView,
-  Dimensions,
   Alert,
 } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
@@ -21,9 +19,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import api from '../services/api';
 import { API_BASE } from '../config';
+import { getDisplayableImageUrl } from '../utils/mediaUrl';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = (SCREEN_WIDTH - 60) / 2; // 2 columns with padding
+const THUMBNAIL_ASPECT_RATIO = 16 / 9;
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -48,8 +46,10 @@ interface Course {
   name?: string;
   title?: string;
   thumbnail_url?: string;
+  thumbnail?: string;
   description?: string;
   instructor_name?: string;
+  instructor_photo_url?: string;
   instructor_bio?: string;
   lectures_count?: number;
   is_enrolled?: boolean;
@@ -62,6 +62,8 @@ export default function CourseListScreen() {
   const navigation = useNavigation<Nav>();
   const [list, setList] = useState<Course[]>([]);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
+  const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
+  const [failedInstructorPhotos, setFailedInstructorPhotos] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -126,11 +128,19 @@ export default function CourseListScreen() {
     const name = item.name ?? item.title ?? `Course ${item.id ?? item.course_id}`;
     const courseId = String(item.course_id ?? item.id);
     const isEnrolled = enrolledCourseIds.has(courseId);
-    let thumbnail = item.thumbnail_url;
+    const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
+    let thumbnail = item.thumbnail_url ?? item.thumbnail;
     if (thumbnail && !thumbnail.startsWith('http')) {
-      const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
       thumbnail = base ? `${base}${thumbnail.startsWith('/') ? '' : '/'}${thumbnail}` : null;
     }
+    thumbnail = getDisplayableImageUrl(thumbnail) ?? thumbnail;
+    const thumbnailFailed = failedThumbnails.has(courseId);
+    let instructorPhotoUrl = item.instructor_photo_url;
+    if (instructorPhotoUrl && !instructorPhotoUrl.startsWith('http')) {
+      instructorPhotoUrl = base ? `${base}${instructorPhotoUrl.startsWith('/') ? '' : '/'}${instructorPhotoUrl}` : undefined;
+    }
+    instructorPhotoUrl = getDisplayableImageUrl(instructorPhotoUrl ?? '') ?? instructorPhotoUrl;
+    const instructorPhotoFailed = failedInstructorPhotos.has(courseId);
     const desc = item.description || '';
     const instructorName = item.instructor_name || 'Instructor';
     const instructorBio = item.instructor_bio || '';
@@ -139,8 +149,12 @@ export default function CourseListScreen() {
       <View style={styles.courseCard}>
         {/* Thumbnail */}
         <View style={styles.thumbnailContainer}>
-          {thumbnail ? (
-            <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
+          {thumbnail && !thumbnailFailed ? (
+            <Image
+              source={{ uri: thumbnail }}
+              style={styles.thumbnail}
+              onError={() => setFailedThumbnails((prev) => new Set(prev).add(courseId))}
+            />
           ) : (
             <View style={styles.thumbnailPlaceholder}>
               <Text style={styles.thumbnailIcon}>📚</Text>
@@ -162,7 +176,15 @@ export default function CourseListScreen() {
           {/* Instructor Info */}
           <View style={styles.instructorCardInfo}>
             <View style={styles.instructorCardAvatar}>
-              <Text style={styles.instructorCardIcon}>👨‍🏫</Text>
+              {instructorPhotoUrl && !instructorPhotoFailed ? (
+                <Image
+                  source={{ uri: instructorPhotoUrl }}
+                  style={styles.instructorCardPhoto}
+                  onError={() => setFailedInstructorPhotos((prev) => new Set(prev).add(courseId))}
+                />
+              ) : (
+                <Text style={styles.instructorCardIcon}>👨‍🏫</Text>
+              )}
             </View>
             <View style={styles.instructorCardDetails}>
               <Text style={styles.instructorCardLabel}>Instructor</Text>
@@ -217,20 +239,19 @@ export default function CourseListScreen() {
     );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>All Courses</Text>
-      </View>
-      <FlatList
-        data={list}
-        keyExtractor={(item) => String(item.course_id ?? item.id ?? Math.random())}
-        renderItem={renderItem}
-        numColumns={2}
-        scrollEnabled={false}
-        columnWrapperStyle={styles.row}
-        ListEmptyComponent={<Text style={styles.empty}>No courses available</Text>}
-      />
-    </ScrollView>
+    <FlatList
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      data={list}
+      keyExtractor={(item) => String(item.course_id ?? item.id ?? Math.random())}
+      renderItem={renderItem}
+      ListHeaderComponent={
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>All Courses</Text>
+        </View>
+      }
+      ListEmptyComponent={<Text style={styles.empty}>No courses available</Text>}
+    />
   );
 }
 
@@ -262,12 +283,9 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
   },
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
   courseCard: {
-    width: CARD_WIDTH,
+    width: '100%',
+    marginBottom: 20,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -276,7 +294,7 @@ const styles = StyleSheet.create({
   },
   thumbnailContainer: {
     width: '100%',
-    height: 200,
+    aspectRatio: THUMBNAIL_ASPECT_RATIO,
     backgroundColor: COLORS.primary,
   },
   thumbnail: {
@@ -328,6 +346,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary + '4d',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  instructorCardPhoto: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   instructorCardIcon: {
     fontSize: 32,

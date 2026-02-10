@@ -2,13 +2,13 @@
  * Recorded videos for a course: GET /api/courses/:id/lectures. Read-only list with video playback.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Linking, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Image } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import api from '../services/api';
-import { getVideoPlayableUrl, isStreamableInApp } from '../utils/videoUrl';
+import { getVideoPlayableUrl } from '../utils/videoUrl';
 import { API_BASE } from '../config';
 
 type Route = RouteProp<RootStackParamList, 'VideoList'>;
@@ -104,15 +104,8 @@ export default function VideoListScreen() {
 
     const title = lecture.title ?? lecture.name ?? `Lecture ${lecture.id}`;
 
-    // If streamable in-app (not YouTube/Drive), use our player
-    if (isStreamableInApp(videoUrl)) {
-      navigation.navigate('VideoPlayer', { videoUri: videoUrl, title });
-    } else {
-      // YouTube/Drive: open in browser
-      Linking.openURL(videoUrl).catch((err) => {
-        console.error('[VideoList] Failed to open external video:', err);
-      });
-    }
+    // Always use in-app player; videoUrl is a backend proxy URL, never the raw source
+    navigation.navigate('VideoPlayer', { videoUri: videoUrl, title });
   };
 
   const renderItem = ({ item }: { item: Lecture }) => {
