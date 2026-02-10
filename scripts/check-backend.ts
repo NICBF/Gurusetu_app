@@ -1,6 +1,6 @@
 /**
  * Check if the backend in .env is reachable from this machine (PC).
- * Run: node scripts/check-backend.js   or  npm run check-backend
+ * Run: npx ts-node --transpile-only scripts/check-backend.ts   or  npm run check-backend
  */
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
@@ -16,10 +16,13 @@ console.log('Checking backend:', url);
 
 axios
   .get(url, { timeout: 10000 })
-  .then((res) => {
+  .then((res: { status: number; data: unknown }) => {
     console.log('OK', res.status, res.data);
   })
-  .catch((err) => {
-    console.error('Backend not reachable:', err.response ? `${err.response.status} ${err.response.statusText}` : err.message);
+  .catch((err: { response?: { status: number; statusText: string }; message?: string }) => {
+    console.error(
+      'Backend not reachable:',
+      err.response ? `${err.response.status} ${err.response.statusText}` : err.message
+    );
     process.exit(1);
   });
