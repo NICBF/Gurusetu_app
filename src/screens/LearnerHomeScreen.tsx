@@ -1,0 +1,650 @@
+/**
+ * Learner home screen – mirrors live GuruSetu website.
+ * For learner login only. Professor/admin flows come later.
+ * Sections: hero, verticals, top trending courses, why GuruSetu, testimonials, FAQ, bottom nav.
+ */
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/AppNavigator';
+import Icon from '../components/Icon';
+import api from '../services/api';
+import { API_BASE } from '../config';
+import { getDisplayableImageUrl } from '../utils/mediaUrl';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const COLORS = {
+  primary: '#135bec',
+  backgroundDark: '#101622',
+  backgroundLight: '#f6f6f8',
+  surface: '#0f172a',
+  surfaceCard: '#1e293b',
+  border: '#334155',
+  text: '#f1f5f9',
+  textMuted: '#94a3b8',
+  textDim: '#64748b',
+  white: '#ffffff',
+  yellow: '#facc15',
+  emerald: '#10b981',
+  purple: '#a855f7',
+  orange: '#f97316',
+};
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+interface CourseSummary {
+  id?: string;
+  course_id?: string;
+  title?: string;
+  name?: string;
+  thumbnail_url?: string;
+  instructor_name?: string;
+  average_rating?: number;
+  rating?: number;
+  students_count?: number;
+}
+
+// Verticals from live site login page (icons + names)
+const VERTICALS = [
+  { id: 'pedagogy', name: 'Pedagogy', emoji: '🎓' },
+  { id: 'assessment', name: 'Assessment', emoji: '📝' },
+  { id: 'use-of-technology', name: 'Use of Technology', emoji: '💻' },
+  { id: 'ethics', name: 'Ethics of the Teaching Profession', emoji: '⚖️' },
+  { id: 'psychological-literacy', name: 'Psychological Literacy', emoji: '🧠' },
+  { id: 'diversity', name: 'Diversity, Equity and Inclusion', emoji: '🌍' },
+  { id: 'research', name: 'Research', emoji: '🔬' },
+  { id: 'career-management', name: 'Career Management as a Faculty', emoji: '🚀' },
+  { id: 'educational-landscape', name: 'Educational Landscape, Policy and Governance', emoji: '📜' },
+];
+
+// Fallback trending list used only if API call fails
+const TRENDING_FALLBACK: Array<{
+  id: string;
+  title: string;
+  description: string;
+}> = [
+  {
+    id: 'V8',
+    title: 'Lesson Plan - Effective tool for Teaching',
+    description:
+      'Design outcome-based lesson plans that drive engagement and measurable learning.',
+  },
+  {
+    id: 'V10',
+    title: 'Research Grant Writing & Publication',
+    description:
+      'Learn the essentials of grant writing and publishing in reputed journals.',
+  },
+];
+
+const WHY_ITEMS = [
+  { icon: 'auto_awesome' as const, title: 'Innovative Teaching', subtitle: 'Modern tools for contemporary faculty.', color: COLORS.primary },
+  { icon: 'trending_up' as const, title: 'Career Growth', subtitle: 'Accelerate your professional journey.', color: COLORS.emerald },
+  { icon: 'hub' as const, title: 'Peer Networking', subtitle: 'Connect with global educators.', color: COLORS.purple },
+  { icon: 'verified_user' as const, title: 'Expert Mentorship', subtitle: 'Learn from seasoned experts.', color: COLORS.orange },
+];
+
+const FAQ_ITEMS = [
+  { q: 'How do I get certification?', a: 'Complete all modules and assessments in a course to earn your certificate.' },
+  { q: 'Are these courses UGC recognized?', a: 'Please check the course description or contact support for recognition details.' },
+];
+
+// Static assets from live website (logo, ministry)
+const getStaticBase = (): string => {
+  const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
+  return base ? base.replace(/\/api\/?$/, '') : '';
+};
+const STATIC_BASE = getStaticBase();
+const LOGO_URI = STATIC_BASE ? `${STATIC_BASE}/static/logo.png` : '';
+const MINISTRY_URI = STATIC_BASE ? `${STATIC_BASE}/static/ministry-of-edu.png` : '';
+
+export default function LearnerHomeScreen() {
+  const navigation = useNavigation<Nav>();
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [trending, setTrending] = useState<CourseSummary[]>([]);
+
+  const goToCourses = () => navigation.navigate('LearnerAllCourses');
+  const goToCoursesWithVertical = (verticalName: string) =>
+    navigation.navigate('LearnerAllCourses', { vertical: verticalName });
+  const goToCourseDetail = (courseId: string) => navigation.navigate('CourseDetail', { courseId });
+  const goToDashboard = () => navigation.navigate('StudentDashboard');
+  const goToNotifications = () => navigation.navigate('Notifications');
+  const goToLiveClasses = () => navigation.navigate('LiveClasses');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get('/courses');
+        const arr: CourseSummary[] = Array.isArray(data)
+          ? data
+          : (data?.courses ?? data?.items ?? []);
+        if (!Array.isArray(arr)) return;
+        const sorted = [...arr].sort((a, b) => {
+          const aScore = (a.students_count ?? 0) * 10 + (a.average_rating ?? a.rating ?? 0);
+          const bScore = (b.students_count ?? 0) * 10 + (b.average_rating ?? b.rating ?? 0);
+          return bScore - aScore;
+        });
+        if (!cancelled) {
+          setTrending(sorted.slice(0, 3));
+        }
+      } catch {
+        if (!cancelled) {
+          // Fallback to hardcoded list mapped into CourseSummary
+          setTrending(
+            TRENDING_FALLBACK.map((c) => ({
+              id: c.id,
+              course_id: c.id,
+              title: c.title,
+              students_count: 0,
+            })),
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <View style={styles.page}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header – logo from live site; ministry logo from /static/ministry-of-edu.png next to GuruSetu */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            {LOGO_URI ? (
+              <Image source={{ uri: LOGO_URI }} style={styles.headerLogo} resizeMode="contain" />
+            ) : (
+              <View style={styles.logoBox}>
+                <Icon name="school" size={20} color={COLORS.white} />
+              </View>
+            )}
+            <View style={styles.gurusetuAndMinistry}>
+              <Text style={styles.logoTitle}>GuruSetu</Text>
+              {MINISTRY_URI ? (
+                <Image source={{ uri: MINISTRY_URI }} style={styles.headerMinistryLogo} resizeMode="contain" />
+              ) : null}
+            </View>
+          </View>
+          <TouchableOpacity style={styles.searchBtn}>
+            <Icon name="search" size={20} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Hero */}
+        <View style={styles.heroSection}>
+          <View style={styles.heroCard}>
+            <View style={styles.heroBlob1} />
+            <View style={styles.heroBlob2} />
+            <View style={styles.heroContent}>
+              <Text style={styles.heroTitle}>
+                With GuruSetu, every step of your learning journey transforms into meaningful achievement
+              </Text>
+              <TouchableOpacity style={styles.heroBtn} onPress={goToCourses} activeOpacity={0.9}>
+                <Text style={styles.heroBtnText}>Get Started</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Verticals */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Verticals</Text>
+            <View style={styles.chevronRow}>
+              <TouchableOpacity style={styles.chevronBtn}><Icon name="expand_more" size={16} color={COLORS.textMuted} /></TouchableOpacity>
+              <TouchableOpacity style={styles.chevronBtn}><Icon name="expand_more" size={16} color={COLORS.textMuted} /></TouchableOpacity>
+            </View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.verticalsScroll}>
+            {VERTICALS.map((v) => (
+              <TouchableOpacity
+                key={v.id}
+                style={styles.verticalItem}
+                onPress={() => goToCoursesWithVertical(v.name)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.verticalIconBox}>
+                  <Text style={styles.verticalEmoji}>{v.emoji}</Text>
+                </View>
+                <Text style={styles.verticalLabel} numberOfLines={2}>
+                  {v.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Top Trending Courses – live data from backend */}
+        {trending.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionRow}>
+              <View style={styles.sectionRowLeft}>
+                <Icon name="trending_up" size={22} color={COLORS.primary} />
+                <Text style={styles.sectionTitleLarge}>Top Trending Courses</Text>
+              </View>
+              <TouchableOpacity onPress={goToCourses}>
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.coursesList}>
+              {trending.map((c) => {
+                const id = String(c.course_id ?? c.id ?? '');
+                if (!id) return null;
+                const title = c.title ?? c.name ?? 'Course';
+                const instructor = c.instructor_name ?? 'Instructor';
+                const rating = c.average_rating ?? c.rating ?? 0;
+                let thumb = c.thumbnail_url ?? '';
+                if (thumb && !thumb.startsWith('http')) {
+                  const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
+                  thumb = base ? `${base}${thumb.startsWith('/') ? '' : '/'}${thumb}` : thumb;
+                }
+                thumb = getDisplayableImageUrl(thumb) ?? thumb;
+                return (
+                  <View key={id} style={styles.courseCard}>
+                    <View style={styles.courseImageWrap}>
+                      {thumb ? (
+                        <Image source={{ uri: thumb }} style={styles.courseImage} />
+                      ) : (
+                        <View style={styles.courseImageFallback}>
+                          <Icon name="school" size={26} color={COLORS.white80} />
+                        </View>
+                      )}
+                      <View style={[styles.badge, { backgroundColor: COLORS.primary }]}>
+                        <Text style={styles.badgeText}>Trending</Text>
+                      </View>
+                      <View style={styles.courseImageGradient} />
+                    </View>
+                    <View style={styles.courseBody}>
+                      <View style={styles.starRow}>
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Icon key={i} name="star" size={18} color={COLORS.yellow} />
+                        ))}
+                        <Text style={styles.ratingText}>
+                          {rating ? rating.toFixed(1) : '--'}
+                        </Text>
+                      </View>
+                      <Text style={styles.courseTitle} numberOfLines={2}>
+                        {title}
+                      </Text>
+                      <View style={styles.instructorRow}>
+                        <View style={styles.instructorAvatarFallback}>
+                          <Icon name="person" size={20} color={COLORS.primary} />
+                        </View>
+                        <View>
+                          <Text style={styles.instructorLabel}>Instructor</Text>
+                          <Text style={styles.instructorName}>{instructor}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.courseDesc} numberOfLines={3}>
+                        {c.students_count
+                          ? `${c.students_count.toLocaleString()} learners enrolled`
+                          : 'Join faculty across India learning with GuruSetu.'}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.enrollBtn}
+                        onPress={() => goToCourseDetail(id)}
+                        activeOpacity={0.9}
+                      >
+                        <Text style={styles.enrollBtnText}>View Course</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Why GuruSetu */}
+        <View style={[styles.section, styles.whySection]}>
+          <Text style={styles.sectionTitle}>Why GuruSetu?</Text>
+          <View style={styles.whyGrid}>
+            {WHY_ITEMS.map((item, i) => (
+              <View key={i} style={styles.whyCard}>
+                <View style={[styles.whyIconBox, { backgroundColor: item.color + '20' }]}>
+                  <Icon name={item.icon} size={22} color={item.color} />
+                </View>
+                <Text style={styles.whyTitle}>{item.title}</Text>
+                <Text style={styles.whySubtitle}>{item.subtitle}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* FAQ */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+          {FAQ_ITEMS.map((faq, i) => (
+            <View key={i} style={styles.faqItemWrap}>
+              <TouchableOpacity
+                style={styles.faqItem}
+                onPress={() => setExpandedFaq(expandedFaq === i ? null : i)}
+              >
+                <Text style={styles.faqQuestion}>{faq.q}</Text>
+                <Icon name="expand_more" size={20} color={COLORS.textDim} />
+              </TouchableOpacity>
+              {expandedFaq === i && <Text style={styles.faqAnswer}>{faq.a}</Text>}
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+
+      {/* Bottom nav */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navItem}>
+          <Icon name="home" size={24} color={COLORS.primary} />
+          <Text style={[styles.navLabel, styles.navLabelActive]}>Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={goToDashboard}>
+          <Icon name="dashboard" size={24} color={COLORS.textMuted} />
+          <Text style={styles.navLabel}>Dashboard</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={goToLiveClasses}>
+          <View style={styles.fab}>
+            <Icon name="live_tv" size={24} color={COLORS.white} />
+          </View>
+          <Text style={styles.navLabel}>Live</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={goToNotifications}>
+          <View>
+            <Icon name="notifications" size={24} color={COLORS.textMuted} />
+            <View style={styles.badgeDot} />
+          </View>
+          <Text style={styles.navLabel}>Alerts</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('LearnerProfile')}>
+          <Icon name="person" size={24} color={COLORS.textMuted} />
+          <Text style={styles.navLabel}>Profile</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundDark,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(16,22,34,0.8)',
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerLogo: { width: 36, height: 36 },
+  gurusetuAndMinistry: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerMinistryLogo: { width: 32, height: 28 },
+  logoBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  searchBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroSection: { paddingHorizontal: 24, paddingVertical: 24 },
+  heroCard: {
+    borderRadius: 12,
+    padding: 32,
+    overflow: 'hidden',
+    backgroundColor: COLORS.primary,
+  },
+  heroBlob1: {
+    position: 'absolute',
+    right: -40,
+    bottom: -40,
+    width: 192,
+    height: 192,
+    borderRadius: 96,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  heroBlob2: {
+    position: 'absolute',
+    left: -40,
+    top: -40,
+    width: 192,
+    height: 192,
+    borderRadius: 96,
+    backgroundColor: 'rgba(19,91,236,0.2)',
+  },
+  heroContent: { zIndex: 1 },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.white,
+    lineHeight: 30,
+    marginBottom: 16,
+  },
+  heroBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  heroBtnText: { color: COLORS.primary, fontWeight: '600', fontSize: 14 },
+  section: { marginBottom: 32 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: '600', color: COLORS.text },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+  sectionRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitleLarge: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  seeAll: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+  chevronRow: { flexDirection: 'row', gap: 8 },
+  chevronBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verticalsScroll: { paddingHorizontal: 24, gap: 16 },
+  verticalItem: { alignItems: 'center', marginRight: 16 },
+  verticalIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  verticalEmoji: { fontSize: 26 },
+  verticalLabel: { fontSize: 11, fontWeight: '500', color: COLORS.text, textAlign: 'center', maxWidth: 72 },
+  coursesList: { paddingHorizontal: 24, gap: 32 },
+  courseCard: {
+    backgroundColor: COLORS.surfaceCard,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  courseImageWrap: { height: 208, position: 'relative' },
+  courseImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  courseImageFallback: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 9999,
+  },
+  badgeText: { color: COLORS.white, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  courseImageGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 96,
+    backgroundColor: 'transparent',
+  },
+  courseBody: { padding: 24 },
+  starRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  ratingText: { fontSize: 14, fontWeight: '700', color: COLORS.textMuted, marginLeft: 8 },
+  courseTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 16,
+    lineHeight: 26,
+  },
+  instructorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 16,
+  },
+  instructorAvatar: { width: 40, height: 40, borderRadius: 20 },
+  instructorAvatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  instructorLabel: { fontSize: 10, color: COLORS.textDim, fontWeight: '700', marginBottom: 2 },
+  instructorName: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  courseDesc: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24, lineHeight: 20 },
+  enrollBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  enrollBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+  whySection: {
+    backgroundColor: COLORS.surface,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  whyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  whyCard: {
+    width: (SCREEN_WIDTH - 24 * 2 - 16) / 2,
+    backgroundColor: COLORS.surfaceCard,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  whyIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  whyTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  whySubtitle: { fontSize: 11, color: COLORS.textDim, lineHeight: 16 },
+  faqItemWrap: { marginHorizontal: 24, marginBottom: 12 },
+  faqItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: COLORS.surfaceCard,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+  },
+  faqQuestion: { fontSize: 14, fontWeight: '500', color: COLORS.text, flex: 1 },
+  faqAnswer: {
+    padding: 12,
+    paddingTop: 0,
+    fontSize: 13,
+    color: COLORS.textMuted,
+    lineHeight: 20,
+  },
+  bottomSpacer: { height: 100 },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 32,
+    backgroundColor: 'rgba(15,23,42,0.95)',
+    borderTopWidth: 1,
+    borderColor: COLORS.border,
+  },
+  navItem: { alignItems: 'center', minWidth: 48 },
+  navLabel: { fontSize: 10, fontWeight: '500', color: COLORS.textMuted, marginTop: 4 },
+  navLabelActive: { fontWeight: '700', color: COLORS.primary },
+  fab: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -24,
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+  },
+});
