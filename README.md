@@ -1,6 +1,8 @@
 # Gurusetu Mobile App
 
-React Native (Expo) app — **Android only for now** (single codebase, TypeScript).  
+React Native (Expo) app — **Android only for now** (single codebase, TypeScript).
+
+**→ Run the app and check for errors:** [docs/EXPO_RUN_AND_CHECK.md](docs/EXPO_RUN_AND_CHECK.md)  
 Consumes existing Gurusetu HTTPS REST APIs; backend and live website are **read-only** and unchanged.
 
 **No Google Play registration needed.** Distribute the APK directly (internal / sideload).
@@ -24,9 +26,11 @@ cp .env.example .env
 
 ## Run (development)
 
+See **[docs/EXPO_RUN_AND_CHECK.md](docs/EXPO_RUN_AND_CHECK.md)** for full steps (start Expo, check dependencies, common errors).
+
 ```bash
 npm start
-# Then: npm run android  OR  npm run ios
+# Then press 'a' for Android (or 'i' for iOS)
 ```
 
 **Note:** Web is not supported; use only Android and iOS targets.
