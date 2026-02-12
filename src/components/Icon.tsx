@@ -27,7 +27,26 @@ type IconName =
   | 'notifications'
   | 'expand_more'
   | 'star'
-  | 'play_arrow';
+  | 'play_arrow'
+  | 'pause'
+  | 'file_download'
+  | 'arrow_back_ios_new'
+  | 'close'
+  | 'share'
+  | 'visibility'
+  | 'auto_stories'
+  | 'quiz'
+  | 'phone'
+  | 'schedule'
+  | 'mail'
+  | 'help_outline'
+  | 'replay_10'
+  | 'forward_10'
+  | 'closed_caption'
+  | 'settings'
+  | 'fullscreen'
+  | 'volume_up'
+  | 'volume_off';
 
 const iconMap: Record<IconName, string> = {
   school: '🎓',
@@ -37,6 +56,14 @@ const iconMap: Record<IconName, string> = {
   person: '👤',
   search: '🔍',
   psychology: '🧠',
+  pause: '⏸️',
+  replay_10: '⏪',
+  forward_10: '⏩',
+  closed_caption: '📝',
+  settings: '⚙️',
+  fullscreen: '⛶',
+  volume_up: '🔊',
+  volume_off: '🔇',
   biotech: '🧬',
   grading: '📋',
   groups: '👥',
@@ -52,6 +79,17 @@ const iconMap: Record<IconName, string> = {
   expand_more: '⬇️',
   star: '⭐',
   play_arrow: '▶️',
+  file_download: '📥',
+  arrow_back_ios_new: '←',
+  close: '✕',
+  share: '↗',
+  visibility: '👁',
+  auto_stories: '📚',
+  quiz: '❓',
+  phone: '📞',
+  schedule: '🕐',
+  mail: '✉️',
+  help_outline: 'ℹ️',
 };
 
 interface IconProps {
