@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
     const safetyTimeout = setTimeout(() => {
       if (mounted) setState((s) => (s.isLoading ? { ...s, isLoading: false } : s));
-    }, 5000);
+    }, __DEV__ ? 1000 : 5000); // Faster timeout in development
 
     (async () => {
       try {

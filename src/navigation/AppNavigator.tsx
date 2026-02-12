@@ -7,9 +7,11 @@ import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../auth/AuthContext';
+import { useTheme } from '../theme/ThemeContext';
+import { ThemeToggleButton } from '../components/ThemeToggleButton';
 
 /** Minimum time IntroScreen is shown as opening/loading (ms). Ensures loading uses IntroScreen. */
-const MIN_INTRO_MS = 2500;
+const MIN_INTRO_MS = __DEV__ ? 500 : 2500; // Faster in development, proper UX in production
 import IntroScreen from '../screens/IntroScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -18,6 +20,8 @@ import ChatbotScreen from '../screens/ChatbotScreen';
 import LearnerHomeScreen from '../screens/LearnerHomeScreen';
 import LearnerAllCoursesScreen from '../screens/LearnerAllCoursesScreen';
 import LearnerProfileScreen from '../screens/LearnerProfileScreen';
+import LearnerCertificatesScreen from '../screens/LearnerCertificatesScreen';
+import LearnerFollowUsScreen from '../screens/LearnerFollowUsScreen';
 import ProfileSettingsScreen from '../screens/ProfileSettingsScreen';
 import FacultyDashboard from '../screens/FacultyDashboard';
 import StudentDashboard from '../screens/StudentDashboard';
@@ -27,7 +31,7 @@ import VideoListScreen from '../screens/VideoListScreen';
 import VideoPlayerScreen from '../screens/VideoPlayerScreen';
 import LearnerNotificationsScreen from '../screens/LearnerNotificationsScreen';
 import LearnerLiveClassScreen from '../screens/LearnerLiveClassScreen';
-import Icon from '../components/Icon';
+import LearnerHelpCenterScreen from '../screens/LearnerHelpCenterScreen';
 export type RootStackParamList = {
   Intro: { standalone?: boolean } | undefined;
   Login: undefined;
@@ -37,44 +41,72 @@ export type RootStackParamList = {
   LearnerHome: undefined;
   LearnerAllCourses: { vertical?: string } | undefined;
   LearnerProfile: undefined;
+  LearnerCertificates: undefined;
+  LearnerFollowUs: undefined;
   FacultyDashboard: undefined;
   StudentDashboard: undefined;
   CourseList: undefined;
   CourseDetail: { courseId: string };
   VideoList: { courseId: string };
-  VideoPlayer: { videoUri: string; title: string };
+  VideoPlayer: {
+    videoUri: string;
+    title: string;
+    courseId?: string;
+    lectureId?: string;
+    isIntro?: boolean;
+  };
   Notifications: undefined;
   LiveClasses: undefined;
   ProfileSettings: undefined;
+  HelpCenter: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+function AuthStack() {
+  const { theme } = useTheme();
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        headerStyle: { backgroundColor: theme.colors.headerBackground },
+        headerTintColor: theme.colors.headerTint,
+        headerRight: () => <ThemeToggleButton />,
+      }}
+      initialRouteName="Login"
+    >
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{ headerShown: true, title: 'Create Account', headerRight: () => <ThemeToggleButton />, headerStyle: { backgroundColor: theme.colors.headerBackground }, headerTintColor: theme.colors.headerTint }}
+      />
+      <Stack.Screen
+        name="Contact"
+        component={ContactScreen}
+        options={{ headerShown: true, title: 'Contact Support', headerRight: () => <ThemeToggleButton />, headerStyle: { backgroundColor: theme.colors.headerBackground }, headerTintColor: theme.colors.headerTint }}
+      />
+    </Stack.Navigator>
+  );
+}
+
 function FacultyStack() {
+  const { theme } = useTheme();
+  const headerOpts = {
+    headerStyle: { backgroundColor: theme.colors.headerBackground },
+    headerTintColor: theme.colors.headerTint,
+    headerRight: () => <ThemeToggleButton />,
+  };
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Navigator
-        screenOptions={({ navigation }) => ({
-          headerShown: true,
-          headerRight: () => (
-            <View style={{ marginRight: 8 }}>
-              <Icon
-                name="contact_support"
-                size={22}
-                color="#0061A4"
-                onPress={() => navigation.navigate('Chatbot')}
-              />
-            </View>
-          ),
-        })}
-      >
+      <Stack.Navigator screenOptions={{ headerShown: true, ...headerOpts }}>
         <Stack.Screen name="FacultyDashboard" component={FacultyDashboard} options={{ title: 'Faculty Dashboard' }} />
         <Stack.Screen name="CourseList" component={CourseListScreen} options={{ title: 'My Courses' }} />
         <Stack.Screen name="CourseDetail" component={LearnerCourseViewScreen} options={{ title: 'Course' }} />
         <Stack.Screen name="VideoList" component={VideoListScreen} options={{ title: 'Recorded Videos' }} />
-        <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ title: 'Video Player', headerShown: true, headerStyle: { backgroundColor: '#0a0e27' }, headerTintColor: '#ffffff' }} />
+        <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ title: 'Video Player', headerShown: true }} />
         <Stack.Screen name="Notifications" component={LearnerNotificationsScreen} options={{ title: 'Notifications' }} />
-        <Stack.Screen name="LiveClasses" component={LearnerLiveClassScreen} options={{ title: 'Live Classes', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }} />
+        <Stack.Screen name="LiveClasses" component={LearnerLiveClassScreen} options={{ title: 'Live Classes' }} />
         <Stack.Screen name="Contact" component={ContactScreen} options={{ title: 'Contact Support' }} />
         <Stack.Screen name="Chatbot" component={ChatbotScreen} options={{ title: 'Chat Support' }} />
       </Stack.Navigator>
@@ -83,52 +115,31 @@ function FacultyStack() {
 }
 
 function StudentStack() {
+  const { theme } = useTheme();
+  const headerOpts = {
+    headerStyle: { backgroundColor: theme.colors.headerBackground },
+    headerTintColor: theme.colors.headerTint,
+    headerRight: () => <ThemeToggleButton />,
+  };
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Navigator
-        screenOptions={({ navigation }) => ({
-          headerShown: true,
-          headerRight: () => (
-            <View style={{ marginRight: 8 }}>
-              <Icon
-                name="contact_support"
-                size={22}
-                color="#0061A4"
-                onPress={() => navigation.navigate('Chatbot')}
-              />
-            </View>
-          ),
-        })}
-      >
-        <Stack.Screen
-          name="LearnerHome"
-          component={LearnerHomeScreen}
-          options={{ title: 'GuruSetu', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }}
-        />
-        <Stack.Screen
-          name="LearnerAllCourses"
-          component={LearnerAllCoursesScreen}
-          options={{ title: 'Courses', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }}
-        />
-        <Stack.Screen
-          name="LearnerProfile"
-          component={LearnerProfileScreen}
-          options={{ title: 'Profile', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }}
-        />
-        <Stack.Screen
-          name="ProfileSettings"
-          component={ProfileSettingsScreen}
-          options={{ title: 'Profile Settings', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }}
-        />
+      <Stack.Navigator screenOptions={{ headerShown: true, ...headerOpts }}>
+        <Stack.Screen name="LearnerHome" component={LearnerHomeScreen} options={{ title: 'GuruSetu' }} />
+        <Stack.Screen name="LearnerAllCourses" component={LearnerAllCoursesScreen} options={{ title: 'Courses' }} />
+        <Stack.Screen name="LearnerProfile" component={LearnerProfileScreen} options={{ title: 'Profile' }} />
+        <Stack.Screen name="LearnerCertificates" component={LearnerCertificatesScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="LearnerFollowUs" component={LearnerFollowUsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="ProfileSettings" component={ProfileSettingsScreen} options={{ title: 'Profile Settings' }} />
         <Stack.Screen name="StudentDashboard" component={StudentDashboard} options={{ title: 'My Learning' }} />
         <Stack.Screen name="CourseList" component={CourseListScreen} options={{ title: 'My Courses' }} />
         <Stack.Screen name="CourseDetail" component={LearnerCourseViewScreen} options={{ title: 'Course' }} />
         <Stack.Screen name="VideoList" component={VideoListScreen} options={{ title: 'Videos' }} />
-        <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ title: 'Video Player', headerShown: true, headerStyle: { backgroundColor: '#0a0e27' }, headerTintColor: '#ffffff' }} />
+        <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ title: 'Video Player', headerShown: true }} />
         <Stack.Screen name="Notifications" component={LearnerNotificationsScreen} options={{ title: 'Notifications' }} />
-        <Stack.Screen name="LiveClasses" component={LearnerLiveClassScreen} options={{ title: 'Live Classes', headerStyle: { backgroundColor: '#101622' }, headerTintColor: '#f1f5f9' }} />
+        <Stack.Screen name="LiveClasses" component={LearnerLiveClassScreen} options={{ title: 'Live Classes' }} />
         <Stack.Screen name="Contact" component={ContactScreen} options={{ title: 'Contact Support' }} />
         <Stack.Screen name="Chatbot" component={ChatbotScreen} options={{ title: 'Chat Support' }} />
+        <Stack.Screen name="HelpCenter" component={LearnerHelpCenterScreen} options={{ title: 'Help Center' }} />
       </Stack.Navigator>
     </View>
   );
@@ -165,14 +176,7 @@ export default function AppNavigator() {
       onStateChange={(state) => state && console.log('Nav:', state.routes?.[state.index]?.name ?? state)}
     >
       {!isAuthenticated ? (
-        <Stack.Navigator
-          screenOptions={{ headerShown: false }}
-          initialRouteName="Login"
-        >
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: true, title: 'Create Account' }} />
-          <Stack.Screen name="Contact" component={ContactScreen} options={{ headerShown: true, title: 'Contact Support' }} />
-        </Stack.Navigator>
+        <AuthStack />
       ) : isFaculty ? (
         <FacultyStack />
       ) : (
