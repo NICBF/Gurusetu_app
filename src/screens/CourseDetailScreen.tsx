@@ -25,6 +25,12 @@ import { getDisplayableImageUrl } from '../utils/mediaUrl';
 import { API_BASE } from '../config';
 import Icon from '../components/Icon';
 import { CourseVideoPlayer } from './VideoPlayerScreen';
+import VideoFeedbackModal from '../components/VideoFeedbackModal';
+import { checkVideoFeedback } from '../services/videoFeedbackService';
+import QuizModal from '../components/QuizModal';
+import { getCourseQuizzes, getQuiz, checkQuizCompletion, type Quiz } from '../services/quizService';
+import AssignmentModal from '../components/AssignmentModal';
+import { getCourseAssignments, type Assignment } from '../services/assignmentService';
 
 const COLORS = {
   bg: '#0a0e27',
@@ -68,6 +74,19 @@ export default function CourseDetailScreen() {
   const [reviewText, setReviewText] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [instructorPhotoError, setInstructorPhotoError] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [hasFeedback, setHasFeedback] = useState<boolean | null>(null);
+  const [checkingFeedback, setCheckingFeedback] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(false);
+  const [quizCompleted, setQuizCompleted] = useState<boolean | null>(null);
+  const [showAssignment, setShowAssignment] = useState(false);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [assignmentCompleted, setAssignmentCompleted] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +113,138 @@ export default function CourseDetailScreen() {
     })();
     return () => { cancelled = true; };
   }, [courseId]);
+
+  // Check if feedback already exists for intro video
+  useEffect(() => {
+    if (!courseId || !course?.intro_video_path) return;
+    let cancelled = false;
+    setCheckingFeedback(true);
+    (async () => {
+      try {
+        console.log('[CourseDetail] Checking feedback for course:', courseId);
+        const exists = await checkVideoFeedback(courseId, 'intro', true);
+        console.log('[CourseDetail] Feedback exists:', exists);
+        if (!cancelled) {
+          setHasFeedback(exists);
+        }
+      } catch (e) {
+        console.error('[CourseDetail] Error checking feedback:', e);
+        if (!cancelled) {
+          setHasFeedback(false);
+        }
+      } finally {
+        if (!cancelled) setCheckingFeedback(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, course?.intro_video_path]);
+
+  // Load quizzes for the course and check completion status
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    setLoadingQuizzes(true);
+    (async () => {
+      try {
+        console.log('[CourseDetail] Fetching quizzes for course:', courseId);
+        const quizList = await getCourseQuizzes(courseId);
+        console.log('[CourseDetail] Quizzes received:', quizList);
+        if (!cancelled) {
+          setQuizzes(quizList);
+          // If there's at least one quiz, check completion from list first, then load details
+          if (quizList.length > 0) {
+            const firstQuiz = quizList[0];
+            // Check completion status from quiz list response
+            const isCompletedFromList = firstQuiz.is_completed ?? firstQuiz.submission_status === 'completed' ?? (firstQuiz.score !== undefined && firstQuiz.score !== null);
+            console.log('[CourseDetail] Quiz completion from list:', isCompletedFromList, firstQuiz);
+            
+            if (!cancelled) {
+              setSelectedQuiz(firstQuiz);
+              setQuizCompleted(isCompletedFromList);
+            }
+            
+            // Also load full quiz details to get questions
+            try {
+              const quizDetails = await getQuiz(firstQuiz.id);
+              console.log('[CourseDetail] Quiz details loaded:', quizDetails);
+              if (!cancelled) {
+                setSelectedQuiz(quizDetails);
+                // Update completion status from details if more accurate
+                const isCompletedFromDetails = quizDetails.is_completed ?? quizDetails.submission_status === 'completed' ?? (quizDetails.score !== undefined && quizDetails.score !== null);
+                if (isCompletedFromDetails !== isCompletedFromList) {
+                  console.log('[CourseDetail] Updating quiz completion status from details:', isCompletedFromDetails);
+                  setQuizCompleted(isCompletedFromDetails);
+                }
+              }
+            } catch (e) {
+              console.error('[CourseDetail] Error loading quiz details:', e);
+              // Keep completion status from list
+            }
+          } else {
+            setQuizCompleted(false);
+          }
+        }
+      } catch (e) {
+        console.error('[CourseDetail] Error loading quizzes:', e);
+        if (!cancelled) {
+          setQuizzes([]);
+          setQuizCompleted(false);
+        }
+      } finally {
+        if (!cancelled) setLoadingQuizzes(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  // Load assignments for the course and check completion status
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    setLoadingAssignments(true);
+    (async () => {
+      try {
+        console.log('[CourseDetail] Fetching assignments for course:', courseId);
+        const assignmentList = await getCourseAssignments(courseId);
+        console.log('[CourseDetail] Assignments received:', assignmentList);
+        if (!cancelled) {
+          setAssignments(assignmentList);
+          // If there's at least one assignment, select the first one
+          if (assignmentList.length > 0) {
+            const firstAssignment = assignmentList[0];
+            setSelectedAssignment(firstAssignment);
+            // Check if assignment is completed
+            const isCompleted = firstAssignment.is_completed ?? false;
+            console.log('[CourseDetail] Assignment completion status:', isCompleted);
+            setAssignmentCompleted(isCompleted);
+          } else {
+            console.log('[CourseDetail] No assignments found for course');
+            setAssignmentCompleted(false);
+          }
+        }
+      } catch (e) {
+        console.error('[CourseDetail] Error loading assignments:', e);
+        if (!cancelled) {
+          setAssignments([]);
+          setAssignmentCompleted(false);
+        }
+      } finally {
+        if (!cancelled) setLoadingAssignments(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  const handleVideoEnd = async () => {
+    if (hasFeedback === null) {
+      // Still checking, wait a bit
+      setTimeout(() => {
+        if (!hasFeedback) setShowFeedback(true);
+      }, 500);
+    } else if (!hasFeedback) {
+      setShowFeedback(true);
+    }
+  };
 
   const handleSubmitReview = async () => {
     if (rating === 0) {
@@ -144,15 +295,84 @@ export default function CourseDetailScreen() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
     >
-      {/* Intro video – inline expo-av player */}
+      {/* Intro video – inline player (expo-video) */}
       {introVideoUri ? (
-        <View style={styles.videoContainer}>
+        <View style={styles.videoContainer} testID="course-video-player">
           <CourseVideoPlayer
             videoUri={introVideoUri}
             title={course.title}
+            thumbnailUri={thumbnail || undefined}
+            courseId={courseId}
+            isIntro={true}
             showHeader={false}
+            onEnd={handleVideoEnd}
           />
         </View>
+      ) : thumbnail ? (
+        <View style={styles.videoContainer} testID="course-thumbnail">
+          <Image source={{ uri: thumbnail }} style={styles.videoThumbnail} resizeMode="cover" />
+        </View>
+      ) : null}
+
+      {/* Video feedback – between player and course title */}
+      {introVideoUri && courseId && hasFeedback === false ? (
+        <TouchableOpacity
+          testID="rate-session-button"
+          style={styles.feedbackButton}
+          onPress={() => setShowFeedback(true)}
+          activeOpacity={0.8}
+        >
+          <Icon name="grading" size={20} color={COLORS.white} />
+          <Text style={styles.feedbackButtonText}>Rate this session</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Quizzes button or completion message – below feedback button */}
+      {courseId && quizzes.length > 0 ? (
+        quizCompleted ? (
+          <View style={styles.quizCompletedContainer}>
+            <Icon name="verified_user" size={20} color="#4CAF50" />
+            <Text style={styles.quizCompletedText}>Quiz Finished</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.quizButton}
+            onPress={() => {
+              if (!quizCompleted && selectedQuiz) {
+                setShowQuiz(true);
+              }
+            }}
+            activeOpacity={0.8}
+            disabled={quizCompleted === true}
+          >
+            <Icon name="quiz" size={20} color={COLORS.white} />
+            <Text style={styles.quizButtonText}>Quizzes</Text>
+          </TouchableOpacity>
+        )
+      ) : null}
+
+      {/* Assignments button or completion message – below quizzes */}
+      {courseId && assignments.length > 0 ? (
+        assignmentCompleted ? (
+          <View style={styles.assignmentCompletedContainer}>
+            <Icon name="verified_user" size={20} color="#4CAF50" />
+            <Text style={styles.assignmentCompletedText}>Assignment Finished</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.assignmentButton}
+            onPress={() => {
+              if (!assignmentCompleted && selectedAssignment) {
+                setShowAssignment(true);
+              }
+            }}
+            activeOpacity={0.8}
+            disabled={assignmentCompleted === true}
+          >
+            <Icon name="grading" size={20} color={COLORS.white} />
+            <Text style={styles.assignmentButtonText}>Assignments</Text>
+          </TouchableOpacity>
+        )
       ) : null}
 
       {/* Course Details Section */}
@@ -293,6 +513,48 @@ export default function CourseDetailScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {courseId && (
+        <VideoFeedbackModal
+          isOpen={showFeedback && !hasFeedback}
+          onClose={() => setShowFeedback(false)}
+          lectureTitle={course.title}
+          courseId={courseId}
+          lectureId="intro"
+          isIntro={true}
+          onSubmit={() => {
+            setHasFeedback(true);
+            setShowFeedback(false);
+          }}
+        />
+      )}
+
+      {selectedQuiz && !quizCompleted && (
+        <QuizModal
+          isOpen={showQuiz}
+          onClose={() => setShowQuiz(false)}
+          quiz={selectedQuiz}
+          onComplete={(score, total) => {
+            console.log('[CourseDetail] Quiz completed:', score, '/', total);
+            // Mark quiz as completed after submission
+            setQuizCompleted(true);
+            // Update selectedQuiz to reflect completion
+            setSelectedQuiz({ ...selectedQuiz, is_completed: true, score, total });
+            setShowQuiz(false);
+          }}
+        />
+      )}
+
+      {selectedAssignment && !assignmentCompleted && (
+        <AssignmentModal
+          isOpen={showAssignment}
+          onClose={() => setShowAssignment(false)}
+          assignment={selectedAssignment}
+          onStartAssignment={() => {
+            console.log('[CourseDetail] Assignment started');
+          }}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -318,12 +580,102 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    minHeight: 280,
     backgroundColor: '#000',
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
+    marginBottom: 24,
+  },
+  videoThumbnail: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000',
+  },
+  feedbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    borderRadius: 12,
+  },
+  feedbackButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  quizButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(33, 150, 243, 0.9)',
+    borderRadius: 12,
+  },
+  quizButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  quizCompletedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.5)',
+  },
+  quizCompletedText: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  assignmentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     marginBottom: 30,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(156, 39, 176, 0.9)',
+    borderRadius: 12,
+  },
+  assignmentButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  assignmentCompletedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 30,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.5)',
+  },
+  assignmentCompletedText: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: '600',
   },
   video: {
     width: '100%',

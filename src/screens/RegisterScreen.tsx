@@ -19,8 +19,10 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { registerLearner, registerProfessor, type RegisterLearnerPayload, type RegisterProfessorPayload } from '../services/registrationService';
+import { INSTITUTIONS, STATES, COUNTRIES } from '../services/registrationOptionsService';
 import { isTablet, responsiveNumber } from '../utils/responsive';
 import TextField from '../components/TextField';
+import DropdownField from '../components/DropdownField';
 import Icon from '../components/Icon';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -226,8 +228,9 @@ export default function RegisterScreen() {
               </View>
             </View>
 
-            <View style={styles.form}>
+            <View style={styles.form} testID="registration-form">
               <TextField
+                testID="email-input"
                 label="Email"
                 value={email}
                 onChangeText={(text) => {
@@ -282,17 +285,17 @@ export default function RegisterScreen() {
                     }}
                     editable={!loading}
                   />
-                  <TextField
+                  <DropdownField
                     label="Institution (Optional)"
                     value={institution}
-                    onChangeText={(text) => {
-                      setInstitution(text);
+                    onSelect={(val) => {
+                      setInstitution(val);
                       if (error) setError('');
-                      const lowerText = text.toLowerCase().trim();
-                      setShowOtherInstitution(lowerText === 'other' || lowerText.includes('other'));
+                      setShowOtherInstitution(val === 'Other');
                     }}
+                    options={INSTITUTIONS}
+                    placeholder="Select institution"
                     editable={!loading}
-                    placeholder="e.g., IIT Madras, Other"
                   />
                   {showOtherInstitution && (
                     <TextField
@@ -305,28 +308,33 @@ export default function RegisterScreen() {
                       editable={!loading}
                     />
                   )}
-                  <TextField
+                  <DropdownField
                     label="State (Optional)"
                     value={state}
-                    onChangeText={(text) => {
-                      setState(text);
+                    onSelect={(val) => {
+                      setState(val);
                       if (error) setError('');
                     }}
+                    options={STATES}
+                    placeholder="Select state"
                     editable={!loading}
                   />
-                  <TextField
+                  <DropdownField
                     label="Country (Optional)"
                     value={country}
-                    onChangeText={(text) => {
-                      setCountry(text);
+                    onSelect={(val) => {
+                      setCountry(val);
                       if (error) setError('');
                     }}
+                    options={COUNTRIES}
+                    placeholder="Select country"
                     editable={!loading}
                   />
                 </>
               )}
 
               <TextField
+                testID="password-input"
                 label="Password"
                 value={password}
                 onChangeText={(text) => {
@@ -339,6 +347,7 @@ export default function RegisterScreen() {
               />
 
               <TextField
+                testID="confirm-password-input"
                 label="Confirm Password"
                 value={confirmPassword}
                 onChangeText={(text) => {
@@ -350,9 +359,10 @@ export default function RegisterScreen() {
                 editable={!loading}
               />
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? <Text testID="registration-error" style={styles.errorText}>{error}</Text> : null}
 
               <TouchableOpacity
+                testID="create-account-button"
                 style={[styles.primaryButton, loading && styles.buttonDisabled]}
                 onPress={handleRegister}
                 disabled={loading}
@@ -369,6 +379,7 @@ export default function RegisterScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                testID="sign-in-link"
                 style={styles.backButton}
                 onPress={() => navigation.navigate('Login')}
                 activeOpacity={0.7}

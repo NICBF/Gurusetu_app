@@ -153,6 +153,7 @@ export default function LoginScreen() {
                 {ROLES.map((roleOption, index) => (
                   <TouchableOpacity
                     key={roleOption.id}
+                    testID={`login-role-${roleOption.id}`}
                     style={[
                       styles.chip,
                       role === roleOption.id && styles.chipSelected,
@@ -184,8 +185,9 @@ export default function LoginScreen() {
             </View>
 
             {/* Login Form */}
-            <View style={styles.form}>
+            <View style={styles.form} testID="login-form">
               <TextField
+                testID="institutional-id-input"
                 label="Institutional ID"
                 value={institutionalId}
                 onChangeText={(text) => {
@@ -198,6 +200,7 @@ export default function LoginScreen() {
               />
 
               <TextField
+                testID="password-input"
                 label="Password"
                 value={password}
                 onChangeText={(text) => {
@@ -209,9 +212,10 @@ export default function LoginScreen() {
                 editable={!loading}
               />
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? <Text testID="login-error" style={styles.errorText}>{error}</Text> : null}
 
               <TouchableOpacity
+                testID="forgot-password-button"
                 style={styles.forgotPasswordButton}
                 onPress={handleForgotPassword}
                 activeOpacity={0.7}
@@ -220,6 +224,7 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                testID="sign-in-button"
                 style={[styles.primaryButton, loading && styles.buttonDisabled]}
                 onPress={handleLogin}
                 disabled={loading}
@@ -243,6 +248,7 @@ export default function LoginScreen() {
               </View>
 
               <TouchableOpacity
+                testID="register-link"
                 style={styles.secondaryButton}
                 onPress={() => navigation.navigate('Register')}
                 activeOpacity={0.8}

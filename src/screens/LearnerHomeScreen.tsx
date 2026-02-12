@@ -12,6 +12,7 @@ import Icon from '../components/Icon';
 import api from '../services/api';
 import { API_BASE } from '../config';
 import { getDisplayableImageUrl } from '../utils/mediaUrl';
+import { useTheme } from '../theme/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -91,19 +92,16 @@ const FAQ_ITEMS = [
   { q: 'Are these courses UGC recognized?', a: 'Please check the course description or contact support for recognition details.' },
 ];
 
-// Static assets from live website (logo, ministry)
-const getStaticBase = (): string => {
-  const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
-  return base ? base.replace(/\/api\/?$/, '') : '';
-};
-const STATIC_BASE = getStaticBase();
-const LOGO_URI = STATIC_BASE ? `${STATIC_BASE}/static/logo.png` : '';
-const MINISTRY_URI = STATIC_BASE ? `${STATIC_BASE}/static/ministry-of-edu.png` : '';
+// Local logo and ministry assets (bundled with app)
+const LOGO_SOURCE = require('../../assets/logo.png');
+const MINISTRY_SOURCE = require('../../assets/ministry-of-edu.png');
 
 export default function LearnerHomeScreen() {
   const navigation = useNavigation<Nav>();
+  const { theme } = useTheme();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [trending, setTrending] = useState<CourseSummary[]>([]);
+  const c = theme.colors;
 
   const goToCourses = () => navigation.navigate('LearnerAllCourses');
   const goToCoursesWithVertical = (verticalName: string) =>
@@ -150,31 +148,23 @@ export default function LearnerHomeScreen() {
   }, []);
 
   return (
-    <View style={styles.page}>
+    <View style={[styles.page, { backgroundColor: c.background }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header – logo from live site; ministry logo from /static/ministry-of-edu.png next to GuruSetu */}
-        <View style={styles.header}>
+        {/* Header – local logo and ministry logo */}
+        <View style={[styles.header, { backgroundColor: theme.isDarkMode ? 'rgba(16,22,34,0.8)' : c.surfaceCard }]}>
           <View style={styles.headerLeft}>
-            {LOGO_URI ? (
-              <Image source={{ uri: LOGO_URI }} style={styles.headerLogo} resizeMode="contain" />
-            ) : (
-              <View style={styles.logoBox}>
-                <Icon name="school" size={20} color={COLORS.white} />
-              </View>
-            )}
+            <Image source={LOGO_SOURCE} style={styles.headerLogo} resizeMode="contain" />
             <View style={styles.gurusetuAndMinistry}>
-              <Text style={styles.logoTitle}>GuruSetu</Text>
-              {MINISTRY_URI ? (
-                <Image source={{ uri: MINISTRY_URI }} style={styles.headerMinistryLogo} resizeMode="contain" />
-              ) : null}
+              <Text style={[styles.logoTitle, { color: c.text }]}>GuruSetu</Text>
+              <Image source={MINISTRY_SOURCE} style={[styles.headerMinistryLogo, { tintColor: theme.isDarkMode ? '#FFFFFF' : '#0f172a' }]} resizeMode="contain" />
             </View>
           </View>
-          <TouchableOpacity style={styles.searchBtn}>
-            <Icon name="search" size={20} color={COLORS.text} />
+          <TouchableOpacity style={[styles.searchBtn, { backgroundColor: c.surfaceCard }]}>
+            <Icon name="search" size={20} color={c.text} />
           </TouchableOpacity>
         </View>
 
@@ -197,11 +187,7 @@ export default function LearnerHomeScreen() {
         {/* Verticals */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Verticals</Text>
-            <View style={styles.chevronRow}>
-              <TouchableOpacity style={styles.chevronBtn}><Icon name="expand_more" size={16} color={COLORS.textMuted} /></TouchableOpacity>
-              <TouchableOpacity style={styles.chevronBtn}><Icon name="expand_more" size={16} color={COLORS.textMuted} /></TouchableOpacity>
-            </View>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Verticals</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.verticalsScroll}>
             {VERTICALS.map((v) => (
@@ -214,7 +200,7 @@ export default function LearnerHomeScreen() {
                 <View style={styles.verticalIconBox}>
                   <Text style={styles.verticalEmoji}>{v.emoji}</Text>
                 </View>
-                <Text style={styles.verticalLabel} numberOfLines={2}>
+                <Text style={[styles.verticalLabel, { color: c.text }]} numberOfLines={2}>
                   {v.name}
                 </Text>
               </TouchableOpacity>
@@ -228,10 +214,10 @@ export default function LearnerHomeScreen() {
             <View style={styles.sectionRow}>
               <View style={styles.sectionRowLeft}>
                 <Icon name="trending_up" size={22} color={COLORS.primary} />
-                <Text style={styles.sectionTitleLarge}>Top Trending Courses</Text>
+                <Text style={[styles.sectionTitleLarge, { color: c.text }]}>Top Trending Courses</Text>
               </View>
               <TouchableOpacity onPress={goToCourses}>
-                <Text style={styles.seeAll}>See All</Text>
+                <Text style={[styles.seeAll, { color: c.primary }]}>See All</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.coursesList}>
@@ -248,7 +234,7 @@ export default function LearnerHomeScreen() {
                 }
                 thumb = getDisplayableImageUrl(thumb) ?? thumb;
                 return (
-                  <View key={id} style={styles.courseCard}>
+                  <View key={id} style={[styles.courseCard, { backgroundColor: c.surfaceCard }]}>
                     <View style={styles.courseImageWrap}>
                       {thumb ? (
                         <Image source={{ uri: thumb }} style={styles.courseImage} />
@@ -267,28 +253,29 @@ export default function LearnerHomeScreen() {
                         {[1, 2, 3, 4, 5].map((i) => (
                           <Icon key={i} name="star" size={18} color={COLORS.yellow} />
                         ))}
-                        <Text style={styles.ratingText}>
+                        <Text style={[styles.ratingText, { color: c.textMuted }]}>
                           {rating ? rating.toFixed(1) : '--'}
                         </Text>
                       </View>
-                      <Text style={styles.courseTitle} numberOfLines={2}>
+                      <Text style={[styles.courseTitle, { color: c.text }]} numberOfLines={2}>
                         {title}
                       </Text>
                       <View style={styles.instructorRow}>
                         <View style={styles.instructorAvatarFallback}>
-                          <Icon name="person" size={20} color={COLORS.primary} />
+                          <Icon name="person" size={20} color={c.primary} />
                         </View>
                         <View>
-                          <Text style={styles.instructorLabel}>Instructor</Text>
-                          <Text style={styles.instructorName}>{instructor}</Text>
+                          <Text style={[styles.instructorLabel, { color: c.textDim }]}>Instructor</Text>
+                          <Text style={[styles.instructorName, { color: c.text }]}>{instructor}</Text>
                         </View>
                       </View>
-                      <Text style={styles.courseDesc} numberOfLines={3}>
+                      <Text style={[styles.courseDesc, { color: c.textMuted }]} numberOfLines={3}>
                         {c.students_count
                           ? `${c.students_count.toLocaleString()} learners enrolled`
                           : 'Join faculty across India learning with GuruSetu.'}
                       </Text>
                       <TouchableOpacity
+                        testID={`course-card-${id}`}
                         style={styles.enrollBtn}
                         onPress={() => goToCourseDetail(id)}
                         activeOpacity={0.9}
@@ -305,15 +292,15 @@ export default function LearnerHomeScreen() {
 
         {/* Why GuruSetu */}
         <View style={[styles.section, styles.whySection]}>
-          <Text style={styles.sectionTitle}>Why GuruSetu?</Text>
+          <Text style={[styles.sectionTitle, { color: c.text }]}>Why GuruSetu?</Text>
           <View style={styles.whyGrid}>
             {WHY_ITEMS.map((item, i) => (
-              <View key={i} style={styles.whyCard}>
+              <View key={i} style={[styles.whyCard, { backgroundColor: c.surfaceCard }]}>
                 <View style={[styles.whyIconBox, { backgroundColor: item.color + '20' }]}>
                   <Icon name={item.icon} size={22} color={item.color} />
                 </View>
-                <Text style={styles.whyTitle}>{item.title}</Text>
-                <Text style={styles.whySubtitle}>{item.subtitle}</Text>
+                <Text style={[styles.whyTitle, { color: c.text }]}>{item.title}</Text>
+                <Text style={[styles.whySubtitle, { color: c.textDim }]}>{item.subtitle}</Text>
               </View>
             ))}
           </View>
@@ -321,17 +308,17 @@ export default function LearnerHomeScreen() {
 
         {/* FAQ */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+          <Text style={[styles.sectionTitle, { color: c.text }]}>Frequently Asked Questions</Text>
           {FAQ_ITEMS.map((faq, i) => (
             <View key={i} style={styles.faqItemWrap}>
               <TouchableOpacity
-                style={styles.faqItem}
+                style={[styles.faqItem, { backgroundColor: c.surfaceCard }]}
                 onPress={() => setExpandedFaq(expandedFaq === i ? null : i)}
               >
-                <Text style={styles.faqQuestion}>{faq.q}</Text>
-                <Icon name="expand_more" size={20} color={COLORS.textDim} />
+                <Text style={[styles.faqQuestion, { color: c.text }]}>{faq.q}</Text>
+                <Icon name="expand_more" size={20} color={c.textDim} />
               </TouchableOpacity>
-              {expandedFaq === i && <Text style={styles.faqAnswer}>{faq.a}</Text>}
+              {expandedFaq === i && <Text style={[styles.faqAnswer, { color: c.textMuted }]}>{faq.a}</Text>}
             </View>
           ))}
         </View>
@@ -340,31 +327,31 @@ export default function LearnerHomeScreen() {
       </ScrollView>
 
       {/* Bottom nav */}
-      <View style={styles.bottomNav}>
+      <View style={[styles.bottomNav, { backgroundColor: c.surfaceCard }]}>
         <TouchableOpacity style={styles.navItem}>
-          <Icon name="home" size={24} color={COLORS.primary} />
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Home</Text>
+          <Icon name="home" size={24} color={c.primary} />
+          <Text style={[styles.navLabel, styles.navLabelActive, { color: c.primary }]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToDashboard}>
-          <Icon name="dashboard" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Dashboard</Text>
+          <Icon name="dashboard" size={24} color={c.textMuted} />
+          <Text style={[styles.navLabel, { color: c.textMuted }]}>Dashboard</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToLiveClasses}>
           <View style={styles.fab}>
-            <Icon name="live_tv" size={24} color={COLORS.white} />
+            <Icon name="live_tv" size={24} color={c.white} />
           </View>
-          <Text style={styles.navLabel}>Live</Text>
+          <Text style={[styles.navLabel, { color: c.textMuted }]}>Live</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToNotifications}>
           <View>
-            <Icon name="notifications" size={24} color={COLORS.textMuted} />
+            <Icon name="notifications" size={24} color={c.textMuted} />
             <View style={styles.badgeDot} />
           </View>
-          <Text style={styles.navLabel}>Alerts</Text>
+          <Text style={[styles.navLabel, { color: c.textMuted }]}>Alerts</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('LearnerProfile')}>
-          <Icon name="person" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Profile</Text>
+          <Icon name="person" size={24} color={c.textMuted} />
+          <Text style={[styles.navLabel, { color: c.textMuted }]}>Profile</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -393,7 +380,7 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerLogo: { width: 36, height: 36 },
   gurusetuAndMinistry: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerMinistryLogo: { width: 32, height: 28 },
+  headerMinistryLogo: { width: 96, height: 84, tintColor: '#FFFFFF' },
   logoBox: {
     width: 32,
     height: 32,
@@ -471,16 +458,6 @@ const styles = StyleSheet.create({
   sectionRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitleLarge: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   seeAll: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
-  chevronRow: { flexDirection: 'row', gap: 8 },
-  chevronBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   verticalsScroll: { paddingHorizontal: 24, gap: 16 },
   verticalItem: { alignItems: 'center', marginRight: 16 },
   verticalIconBox: {
@@ -616,13 +593,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    zIndex: 10,
+    elevation: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 32,
-    backgroundColor: 'rgba(15,23,42,0.95)',
+    backgroundColor: '#1e293b',
     borderTopWidth: 1,
     borderColor: COLORS.border,
   },

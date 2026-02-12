@@ -53,6 +53,7 @@ export const TextField: React.FC<TextFieldProps> = ({
         ]}
       >
         <TextInput
+          testID={textInputProps.testID}
           style={styles.input}
           value={value}
           onChangeText={onChangeText}
