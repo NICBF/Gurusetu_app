@@ -1,8 +1,8 @@
 /**
  * Notifications API service.
- * Primary contract for the app and live website: GET /notifications, POST /notifications/mark-all-read.
- * Falls back to legacy endpoints /notifications/new-lectures and /notifications/new-assignments
- * so we don't break existing backend behaviour.
+ * Matches live website: section-based UI (New Modules, Assignments, Quizzes, Live Classes).
+ * APIs: GET /notifications (preferred), POST /notifications/mark-all-read;
+ * fallback: GET /notifications/new-lectures, GET /notifications/new-assignments.
  */
 import api from './api';
 
@@ -10,24 +10,52 @@ export type NotificationKind =
   | 'live_class'
   | 'assignment'
   | 'course_added'
+  | 'quiz'
   | 'payment'
   | 'certificate'
   | 'discussion'
   | 'generic';
+
+/** Section keys matching the live website notifications page. */
+export type NotificationSectionKey = 'new_modules' | 'assignments' | 'quizzes' | 'live_classes';
 
 export interface NotificationItem {
   id: string;
   title: string;
   message: string;
   type: NotificationKind;
+  section: NotificationSectionKey;
   created_at?: string;
   is_read?: boolean;
   group?: 'today' | 'yesterday' | 'earlier';
   [key: string]: unknown;
 }
 
+/** Sectioned data for the website-style notifications UI. */
+export interface NotificationsBySection {
+  new_modules: NotificationItem[];
+  assignments: NotificationItem[];
+  quizzes: NotificationItem[];
+  live_classes: NotificationItem[];
+}
+
+function typeToSection(type: NotificationKind): NotificationSectionKey {
+  switch (type) {
+    case 'live_class':
+      return 'live_classes';
+    case 'assignment':
+      return 'assignments';
+    case 'quiz':
+      return 'quizzes';
+    case 'course_added':
+      return 'new_modules';
+    default:
+      return 'new_modules';
+  }
+}
+
 /**
- * Normalize backend response into NotificationItem[].
+ * Normalize backend response into NotificationItem[] with section.
  */
 function normalizeNotifications(raw: any[]): NotificationItem[] {
   return raw.map((n, idx) => {
@@ -38,12 +66,15 @@ function normalizeNotifications(raw: any[]): NotificationItem[] {
       (n.type as NotificationKind) ??
       (n.category as NotificationKind) ??
       'generic';
+    const section: NotificationSectionKey =
+      (n.section as NotificationSectionKey) ?? typeToSection(type);
 
     return {
       id,
       title,
       message,
       type,
+      section,
       created_at: n.created_at ?? n.timestamp,
       is_read: !!n.is_read,
     };
@@ -107,11 +138,13 @@ export async function getNotifications(): Promise<NotificationItem[]> {
           ...x,
           id: x.id ?? `l-${i}`,
           type: x.type ?? 'live_class',
+          section: 'live_classes',
         })),
         ...assignList.map((x: any, i: number) => ({
           ...x,
           id: x.id ?? `a-${i}`,
           type: x.type ?? 'assignment',
+          section: 'assignments',
         })),
       ];
       const normalized = normalizeNotifications(combined);
@@ -120,6 +153,21 @@ export async function getNotifications(): Promise<NotificationItem[]> {
       return [];
     }
   }
+}
+
+/**
+ * Fetch all notifications and group by website sections (New Modules, Assignments, Quizzes, Live Classes).
+ * Uses GET /notifications with fallback to /notifications/new-lectures and /notifications/new-assignments.
+ */
+export async function getNotificationsBySection(): Promise<NotificationsBySection> {
+  const items = await getNotifications();
+  const empty: NotificationItem[] = [];
+  return {
+    new_modules: items.filter((n) => n.section === 'new_modules'),
+    assignments: items.filter((n) => n.section === 'assignments'),
+    quizzes: items.filter((n) => n.section === 'quizzes'),
+    live_classes: items.filter((n) => n.section === 'live_classes'),
+  };
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
  * Live classes API – aligned with live website.
- * Endpoints: GET /live-classes (or /live-classes/now, /live-classes/upcoming).
- * Does not modify the live website; app and website share the same API contract.
+ * Tries GET /api/live-classes first (single response { live, upcoming }); then falls back to
+ * /live-classes/now and /live-classes/upcoming. Read-only; does not modify the live website.
  */
 import api from './api';
 
@@ -32,15 +32,32 @@ export interface LiveClassesResponse {
 }
 
 /**
- * Fetch sessions that are live now. Same contract as live website.
- * GET /live-classes/now or GET /live-classes?status=live
+ * Fetch all live-classes. Tries GET /api/live-classes first (single response { live, upcoming }).
+ * On 404 or error, falls back to GET /live-classes/now and /live-classes/upcoming.
+ * Read-only; does not modify the live website.
  */
-export async function getLiveNow(): Promise<LiveSession[]> {
+export async function getLiveClassesAll(): Promise<LiveClassesResponse> {
+  try {
+    const { data } = await api.get<LiveClassesResponse>('/live-classes');
+    return {
+      live: Array.isArray(data?.live) ? data.live : [],
+      upcoming: Array.isArray(data?.upcoming) ? data.upcoming : [],
+    };
+  } catch {
+    const [live, upcoming] = await Promise.all([
+      getLiveNowFallback(),
+      getUpcomingClassesFallback(),
+    ]);
+    return { live, upcoming };
+  }
+}
+
+async function getLiveNowFallback(): Promise<LiveSession[]> {
   try {
     const { data } = await api.get<LiveSession[] | { live: LiveSession[] }>('/live-classes/now');
     if (Array.isArray(data)) return data;
     return (data as { live: LiveSession[] }).live ?? [];
-  } catch (e) {
+  } catch {
     try {
       const { data } = await api.get<{ live?: LiveSession[] }>('/live-classes', { params: { status: 'live' } });
       return data.live ?? [];
@@ -50,16 +67,12 @@ export async function getLiveNow(): Promise<LiveSession[]> {
   }
 }
 
-/**
- * Fetch upcoming live classes. Same contract as live website.
- * GET /live-classes/upcoming or GET /live-classes?status=upcoming
- */
-export async function getUpcomingClasses(): Promise<UpcomingClass[]> {
+async function getUpcomingClassesFallback(): Promise<UpcomingClass[]> {
   try {
     const { data } = await api.get<UpcomingClass[] | { upcoming: UpcomingClass[] }>('/live-classes/upcoming');
     if (Array.isArray(data)) return data;
     return (data as { upcoming: UpcomingClass[] }).upcoming ?? [];
-  } catch (e) {
+  } catch {
     try {
       const { data } = await api.get<{ upcoming?: UpcomingClass[] }>('/live-classes', { params: { status: 'upcoming' } });
       return data.upcoming ?? [];
@@ -67,4 +80,16 @@ export async function getUpcomingClasses(): Promise<UpcomingClass[]> {
       return [];
     }
   }
+}
+
+/** Fetch sessions that are live now. Prefer getLiveClassesAll() for a single request. */
+export async function getLiveNow(): Promise<LiveSession[]> {
+  const { live } = await getLiveClassesAll();
+  return live;
+}
+
+/** Fetch upcoming live classes. Prefer getLiveClassesAll() for a single request. */
+export async function getUpcomingClasses(): Promise<UpcomingClass[]> {
+  const { upcoming } = await getLiveClassesAll();
+  return upcoming;
 }

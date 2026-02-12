@@ -1,35 +1,36 @@
 /**
- * Chatbot API calls. Backend: POST /chat (separate service, typically on port 8001)
- * Note: Chatbot runs on a separate service. Configure CHATBOT_API_URL in .env if different from main API
+ * Chatbot API calls.
+ * Same host: POST /chatbot-api/chat (body: { question, role? }). Separate service: set EXPO_PUBLIC_CHATBOT_API_URL and use /chat.
  */
 import axios from 'axios';
 import Constants from 'expo-constants';
 import { API_BASE } from '../config';
 
-// Get chatbot URL from env, or construct from API_BASE
-const getChatbotBase = (): string => {
+const getChatbotConfig = (): { base: string; chatPath: string; healthPath: string } => {
   const fromExtra = (Constants.expoConfig as { extra?: { chatbotUrl?: string } } | null)?.extra?.chatbotUrl;
   const chatbotUrl = fromExtra ?? process.env.EXPO_PUBLIC_CHATBOT_API_URL ?? '';
-  
+
   if (chatbotUrl) {
-    return chatbotUrl.replace(/\/+$/, '');
+    const base = chatbotUrl.replace(/\/+$/, '');
+    return { base, chatPath: '/chat', healthPath: '/health' };
   }
-  
-  // Fallback: construct from API_BASE (remove /api if present, chatbot doesn't use it)
   const rawBase = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
-  return rawBase.replace(/\/api$/, '') || rawBase;
+  const base = rawBase.replace(/\/api$/, '') || rawBase;
+  return { base, chatPath: '/chatbot-api/chat', healthPath: '/chatbot-api/health' };
 };
 
-const chatbotBase = getChatbotBase();
+const { base: chatbotBase, chatPath, healthPath } = getChatbotConfig();
 
 export interface ChatRequest {
   question: string;
+  role?: string;
   context?: string;
   conversation_id?: string;
 }
 
 export interface ChatResponse {
-  answer: string;
+  answer?: string;
+  response?: string;
   sources?: string[];
   confidence?: number;
 }
@@ -40,8 +41,7 @@ export interface ChatResponse {
  * If chatbot is on different URL, set EXPO_PUBLIC_CHATBOT_API_URL in .env
  */
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
-  // Chatbot endpoint is /chat (no /api prefix)
-  const url = `${chatbotBase}/chat`;
+  const url = `${chatbotBase}${chatPath}`;
   
   if (__DEV__) console.log('[Chatbot] URL:', url);
   
@@ -69,7 +69,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
  */
 export async function checkChatbotHealth(): Promise<boolean> {
   try {
-    const url = `${chatbotBase}/health`;
+    const url = `${chatbotBase}${healthPath}`;
     const { data } = await axios.get(url, { timeout: 5000 });
     return data?.status === 'ok';
   } catch {
