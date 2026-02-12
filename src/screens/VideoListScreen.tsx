@@ -104,8 +104,14 @@ export default function VideoListScreen() {
 
     const title = lecture.title ?? lecture.name ?? `Lecture ${lecture.id}`;
 
-    // Always use in-app player; videoUrl is a backend proxy URL, never the raw source
-    navigation.navigate('VideoPlayer', { videoUri: videoUrl, title });
+    const isIntro = lecture.id === 'intro';
+    navigation.navigate('VideoPlayer', {
+      videoUri: videoUrl,
+      title,
+      courseId,
+      lectureId: lecture.id,
+      isIntro,
+    });
   };
 
   const renderItem = ({ item }: { item: Lecture }) => {

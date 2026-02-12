@@ -1,206 +1,268 @@
 /**
- * Learner notifications screen – adapted from HTML design.
- * Uses unified /notifications API (with fallback to legacy endpoints).
+ * Learner notifications screen – matches live website (EduFlow) UI.
+ * Section-based: New Modules, Assignments, Quizzes, Live Classes.
+ * APIs: getNotificationsBySection(), markAllNotificationsRead().
  */
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  getNotifications,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/AppNavigator';
+import {
+  getNotificationsBySection,
   markAllNotificationsRead,
   type NotificationItem,
+  type NotificationsBySection,
+  type NotificationSectionKey,
 } from '../services/notificationsService';
 import Icon from '../components/Icon';
+import { useTheme } from '../theme/ThemeContext';
 
 type Filter = 'All' | 'Unread' | 'Archive';
 
 const COLORS = {
   primary: '#135bec',
   backgroundDark: '#101622',
-  surface: '#0f172a',
-  surfaceCard: '#1e293b',
+  surfaceCard: 'rgba(30, 41, 59, 0.4)',
+  surfaceCardBorder: 'rgba(51, 65, 85, 0.6)',
   border: '#334155',
   text: '#f1f5f9',
   textMuted: '#94a3b8',
-  textDim: '#64748b',
+  sectionLabel: '#64748b',
   white: '#ffffff',
-  emerald: '#10b981',
-  amber: '#f59e0b',
-  blue: '#3b82f6',
-  purple: '#a855f7',
 };
 
-function iconForType(type: NotificationItem['type']): { bg: string; color: string; icon: string } {
-  switch (type) {
-    case 'live_class':
-      return { bg: COLORS.primary + '20', color: COLORS.primary, icon: 'live_tv' };
-    case 'assignment':
-      return { bg: COLORS.emerald + '20', color: COLORS.emerald, icon: 'grading' };
-    case 'course_added':
-      return { bg: COLORS.amber + '20', color: COLORS.amber, icon: 'auto_awesome' };
-    case 'payment':
-      return { bg: COLORS.blue + '20', color: COLORS.blue, icon: 'dashboard' };
-    case 'certificate':
-      return { bg: COLORS.purple + '20', color: COLORS.purple, icon: 'verified_user' };
-    case 'discussion':
-      return { bg: COLORS.surfaceCard, color: COLORS.textMuted, icon: 'contact_support' };
-    default:
-      return { bg: COLORS.surfaceCard, color: COLORS.textMuted, icon: 'notifications' };
-  }
+const SECTION_CONFIG: Array<{
+  key: NotificationSectionKey;
+  title: string;
+  emptyMessage: string;
+  iconName: 'auto_stories' | 'grading' | 'quiz' | 'live_tv';
+}> = [
+  { key: 'new_modules', title: 'New Modules', emptyMessage: 'No new modules', iconName: 'auto_stories' },
+  { key: 'assignments', title: 'Assignments', emptyMessage: 'No assignments', iconName: 'grading' },
+  { key: 'quizzes', title: 'Quizzes', emptyMessage: 'No quiz', iconName: 'quiz' },
+  { key: 'live_classes', title: 'Live Classes', emptyMessage: 'No new live classes', iconName: 'live_tv' },
+];
+
+function filterItems(items: NotificationItem[], filter: Filter): NotificationItem[] {
+  if (filter === 'Unread') return items.filter((n) => !n.is_read);
+  if (filter === 'Archive') return items.filter((n) => n.is_read);
+  return items;
+}
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+function BottomNav({ activeTab = 'none' }: { activeTab?: 'home' | 'dashboard' | 'live' | 'notifications' | 'profile' }) {
+  const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
+  const c = theme.colors;
+  return (
+    <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 12), backgroundColor: c.surfaceCard, borderTopColor: c.border }]}>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('LearnerHome')} activeOpacity={0.7}>
+        <Icon name="home" size={22} color={activeTab === 'home' ? c.primary : c.textMuted} />
+        <Text style={[styles.navLabel, { color: activeTab === 'home' ? c.primary : c.textMuted }, activeTab === 'home' && styles.navLabelActive]}>Home</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('StudentDashboard')} activeOpacity={0.7}>
+        <Icon name="dashboard" size={22} color={activeTab === 'dashboard' ? c.primary : c.textMuted} />
+        <Text style={[styles.navLabel, { color: activeTab === 'dashboard' ? c.primary : c.textMuted }, activeTab === 'dashboard' && styles.navLabelActive]}>Dashboard</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('LiveClasses')} activeOpacity={0.7}>
+        <Icon name="live_tv" size={22} color={activeTab === 'live' ? c.primary : c.textMuted} />
+        <Text style={[styles.navLabel, { color: activeTab === 'live' ? c.primary : c.textMuted }, activeTab === 'live' && styles.navLabelActive]}>Live</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+        <View>
+          <Icon name="notifications" size={22} color={activeTab === 'notifications' ? c.primary : c.textMuted} />
+          {activeTab === 'notifications' && <View style={[styles.navDot, { backgroundColor: c.primary }]} />}
+        </View>
+        <Text style={[styles.navLabel, { color: activeTab === 'notifications' ? c.primary : c.textMuted }, activeTab === 'notifications' && styles.navLabelActive]}>Alerts</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('LearnerProfile')} activeOpacity={0.7}>
+        <Icon name="person" size={22} color={activeTab === 'profile' ? c.primary : c.textMuted} />
+        <Text style={[styles.navLabel, { color: activeTab === 'profile' ? c.primary : c.textMuted }, activeTab === 'profile' && styles.navLabelActive]}>Profile</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export default function LearnerNotificationsScreen() {
-  const [items, setItems] = useState<NotificationItem[]>([]);
+  const navigation = useNavigation<Nav>();
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const [sections, setSections] = useState<NotificationsBySection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<Filter>('All');
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const data = await getNotifications();
-        if (!cancelled) setItems(data);
-      } catch (e) {
-        if (!cancelled) setError('Failed to load notifications.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getNotificationsBySection();
+      setSections(data);
+    } catch (e) {
+      setError('Failed to load notifications.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsRead();
     } finally {
-      setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setSections((prev) => {
+        if (!prev) return prev;
+        const map = (arr: NotificationItem[]) =>
+          arr.map((n) => ({ ...n, is_read: true }));
+        return {
+          new_modules: map(prev.new_modules),
+          assignments: map(prev.assignments),
+          quizzes: map(prev.quizzes),
+          live_classes: map(prev.live_classes),
+        };
+      });
     }
   };
 
-  const filtered = items.filter((n) => {
-    if (filter === 'Unread') return !n.is_read;
-    // Archive could be wired when backend supports it – for now same as All
-    return true;
-  });
-
-  const groups: Array<{ key: 'today' | 'yesterday' | 'earlier'; label: string }> = [
-    { key: 'today', label: 'Today' },
-    { key: 'yesterday', label: 'Yesterday' },
-    { key: 'earlier', label: 'Earlier' },
-  ];
-
   if (loading) {
     return (
-      <View style={styles.loadingPage}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading notifications...</Text>
+      <View style={[styles.page, { backgroundColor: c.background }]}>
+        <View style={[styles.loadingPage, { backgroundColor: c.background }]}>
+          <ActivityIndicator size="large" color={c.primary} />
+          <Text style={[styles.loadingText, { color: c.textMuted }]}>Loading notifications...</Text>
+        </View>
+        <BottomNav activeTab="notifications" />
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.loadingPage}>
-        <Text style={styles.errorText}>{error}</Text>
+      <View style={[styles.page, { backgroundColor: c.background }]}>
+        <View style={[styles.loadingPage, { backgroundColor: c.background }]}>
+          <Text style={[styles.errorText, { color: c.text }]}>{error}</Text>
+        </View>
+        <BottomNav activeTab="notifications" />
       </View>
     );
   }
 
   return (
-    <View style={styles.page}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Header */}
+    <View style={[styles.page, { backgroundColor: c.background }]}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
-          <Text style={styles.title}>Notifications</Text>
+          <Text style={[styles.title, { color: c.text }]}>Notifications</Text>
           <TouchableOpacity onPress={handleMarkAllRead} activeOpacity={0.8}>
-            <Text style={styles.markAll}>Mark all read</Text>
+            <Text style={[styles.markAll, { color: c.primary }]}>Mark all read</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Filter chips */}
-        <View style={styles.filterRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          style={styles.filterScroll}
+        >
           {(['All', 'Unread', 'Archive'] as Filter[]).map((f) => (
             <TouchableOpacity
               key={f}
               style={[
                 styles.filterChip,
-                f === 'All' && styles.filterChipPrimary,
-                f === 'Unread' && styles.filterChipSecondary,
-                filter === f && styles.filterChipActiveBorder,
+                { borderColor: c.border },
+                f === filter && f === 'All' && { backgroundColor: c.primary },
+                f === filter && f !== 'All' && styles.filterChipActive,
               ]}
               onPress={() => setFilter(f)}
             >
               <Text
                 style={[
                   styles.filterChipText,
-                  f === 'All' && styles.filterChipTextPrimary,
-                  f === 'Unread' && styles.filterChipTextUnread,
+                  { color: f === filter && f === 'All' ? c.white : c.textMuted },
                 ]}
               >
                 {f}
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
-        {/* Groups: Today, Yesterday, Earlier */}
-        {groups.map(({ key, label }) => {
-          const sectionItems = filtered.filter((n) => (n.group ?? 'earlier') === key);
-          if (!sectionItems.length) return null;
-          return (
-            <View key={key} style={styles.groupSection}>
-              <Text style={styles.groupLabel}>{label}</Text>
-              <View style={styles.groupList}>
-                {sectionItems.map((n) => {
-                  const { bg, color, icon } = iconForType(n.type);
-                  const isUnread = !n.is_read;
-                  return (
-                    <View
-                      key={n.id}
-                      style={[
-                        styles.card,
-                        !isUnread && styles.cardRead,
-                      ]}
-                    >
-                      <View style={styles.cardRow}>
-                        <View style={[styles.iconBox, { backgroundColor: bg }]}>
-                          <Icon name={icon as any} size={20} color={color} />
-                        </View>
-                        <View style={styles.cardBody}>
-                          <View style={styles.cardHeaderRow}>
-                            <Text style={styles.cardTitle} numberOfLines={2}>
+        <View style={styles.sections}>
+          {SECTION_CONFIG.map(({ key, title, emptyMessage, iconName }) => {
+            const list = sections
+              ? filterItems(sections[key], filter)
+              : [];
+            return (
+              <View key={key} style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: c.textDim }]}>{title}</Text>
+                {list.length === 0 ? (
+                  <View style={[styles.emptyCard, { backgroundColor: c.surfaceCard, borderColor: c.border }]}>
+                    <View style={[styles.emptyIconWrap, { backgroundColor: c.surfaceCard }]}>
+                      <Icon
+                        name={iconName}
+                        size={24}
+                        color={c.textDim}
+                      />
+                    </View>
+                    <Text style={[styles.emptyText, { color: c.textDim }]}>{emptyMessage}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.cardList}>
+                    {list.map((n) => (
+                      <View
+                        key={n.id}
+                        style={[
+                          styles.card,
+                          { backgroundColor: c.surfaceCard, borderColor: c.border },
+                          n.is_read && styles.cardRead,
+                        ]}
+                      >
+                        <View style={styles.cardRow}>
+                          <View style={styles.cardBody}>
+                            <Text style={[styles.cardTitle, { color: c.text }]} numberOfLines={2}>
                               {n.title}
                             </Text>
-                            {n.created_at ? (
-                              <Text style={styles.cardTime}>·</Text>
-                            ) : null}
+                            {!!n.message && (
+                              <Text
+                                style={[styles.cardMessage, { color: c.textMuted }]}
+                                numberOfLines={2}
+                              >
+                                {n.message}
+                              </Text>
+                            )}
                           </View>
-                          {!!n.message && (
-                            <Text style={styles.cardMessage} numberOfLines={3}>
-                              {n.message}
-                            </Text>
-                          )}
+                          {!n.is_read && <View style={[styles.unreadDot, { backgroundColor: c.primary }]} />}
                         </View>
-                        {isUnread && <View style={styles.unreadDot} />}
                       </View>
-                    </View>
-                  );
-                })}
+                    ))}
+                  </View>
+                )}
               </View>
-            </View>
-          );
-        })}
-
-        {filtered.length === 0 && (
-          <Text style={styles.emptyText}>No notifications yet.</Text>
-        )}
+            );
+          })}
+        </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      <BottomNav activeTab="notifications" />
     </View>
   );
 }
@@ -212,79 +274,102 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: COLORS.backgroundDark,
+    paddingBottom: 80,
   },
   loadingText: { marginTop: 12, fontSize: 14, color: COLORS.textMuted },
   errorText: { padding: 20, color: '#fca5a5', textAlign: 'center' },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  title: { fontSize: 26, fontWeight: '700', color: COLORS.text },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: -0.5,
+  },
   markAll: { fontSize: 14, fontWeight: '500', color: COLORS.primary },
+  filterScroll: { marginBottom: 32 },
   filterRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 24,
+    paddingVertical: 2,
   },
   filterChip: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 9999,
     backgroundColor: COLORS.surfaceCard,
     borderWidth: 1,
+    borderColor: COLORS.surfaceCardBorder,
+  },
+  filterChipPrimary: {
+    backgroundColor: COLORS.primary,
     borderColor: 'transparent',
   },
-  filterChipPrimary: { backgroundColor: COLORS.primary },
-  filterChipSecondary: { backgroundColor: COLORS.primary + '1a' },
-  filterChipActiveBorder: { borderColor: COLORS.primary + '80' },
-  filterChipText: { fontSize: 14, fontWeight: '500', color: COLORS.textMuted },
+  filterChipActive: {
+    borderColor: COLORS.surfaceCardBorder,
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textMuted,
+  },
   filterChipTextPrimary: { color: COLORS.white },
-  filterChipTextUnread: { color: COLORS.primary },
-  groupSection: { marginBottom: 24 },
-  groupLabel: {
-    fontSize: 10,
+  sections: { gap: 24 },
+  section: { marginBottom: 4 },
+  sectionTitle: {
+    fontSize: 11,
     fontWeight: '700',
-    color: COLORS.textDim,
+    color: COLORS.sectionLabel,
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: 8,
+    letterSpacing: 2.4,
+    marginBottom: 16,
     marginLeft: 4,
   },
-  groupList: { gap: 8 },
-  card: {
+  emptyCard: {
     backgroundColor: COLORS.surfaceCard,
-    borderRadius: 14,
-    padding: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  cardRead: { opacity: 0.8 },
-  cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    borderColor: COLORS.surfaceCardBorder,
+    borderRadius: 16,
+    padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardBody: { flex: 1 },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  emptyIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
+  emptyText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.sectionLabel,
+  },
+  cardList: { gap: 8 },
+  card: {
+    backgroundColor: COLORS.surfaceCard,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceCardBorder,
+  },
+  cardRead: { opacity: 0.85 },
+  cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  cardBody: { flex: 1 },
   cardTitle: {
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.text,
-    flex: 1,
-    marginRight: 4,
   },
-  cardTime: { fontSize: 11, color: COLORS.textMuted, marginLeft: 4 },
   cardMessage: {
     marginTop: 4,
     fontSize: 13,
@@ -298,12 +383,33 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     marginTop: 4,
   },
-  emptyText: {
-    marginTop: 40,
-    textAlign: 'center',
-    fontSize: 14,
-    color: COLORS.textMuted,
+  bottomSpacer: { height: 100 },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    elevation: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingTop: 12,
+    paddingHorizontal: 8,
+    backgroundColor: '#1e293b',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
-  bottomSpacer: { height: 40 },
+  navItem: { alignItems: 'center', minWidth: 48 },
+  navLabel: { fontSize: 10, fontWeight: '500', color: COLORS.textMuted, marginTop: 4 },
+  navLabelActive: { color: COLORS.primary, fontWeight: '600' },
+  navDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+  },
 });
-

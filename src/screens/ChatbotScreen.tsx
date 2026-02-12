@@ -106,7 +106,7 @@ export default function ChatbotScreen() {
       // Add bot response
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: response.answer || 'I apologize, but I couldn\'t generate a response.',
+        text: response.answer || response.response || 'I apologize, but I couldn\'t generate a response.',
         isUser: false,
         timestamp: new Date(),
       };

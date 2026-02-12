@@ -23,6 +23,7 @@ import api from '../services/api';
 import { API_BASE } from '../config';
 import { getDisplayableImageUrl } from '../utils/mediaUrl';
 import Icon from '../components/Icon';
+import { useTheme } from '../theme/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -102,6 +103,8 @@ function resolveThumbnail(thumbnailUrl: string | undefined): string | null {
 export default function StudentDashboard() {
   const { logout } = useAuth();
   const navigation = useNavigation<Nav>();
+  const { theme } = useTheme();
+  const tc = theme.colors;
   const [data, setData] = useState<DashboardData>({});
   const [allCourses, setAllCourses] = useState<CourseSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,9 +162,9 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <View style={styles.loadingPage}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      <View style={[styles.loadingPage, { backgroundColor: tc.background }]}>
+        <ActivityIndicator size="large" color={tc.primary} />
+        <Text style={[styles.loadingText, { color: tc.textMuted }]}>Loading dashboard...</Text>
       </View>
     );
   }
@@ -172,34 +175,34 @@ export default function StudentDashboard() {
   const continueProgress = firstCourse?.progress ?? 74;
 
   return (
-    <View style={styles.page}>
+    <View style={[styles.page, { backgroundColor: tc.background }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.avatarWrap}>
+            <View style={[styles.avatarWrap, { borderColor: tc.primary + '33' }]}>
               <Image
                 source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuADeDn48LPQCqpRxuzHEY5bh5MdlGKWpRDWmWN-fLW_Q8x-hDFGIsUtsNhB5j4B5XJQfpHKMYddfXN_KtMnoBF5OUFZRY2E6cy7ZNZXZA47MgXpLuG80pk1CaqWSXlAkmNamrTMcmiddo5mMFbvAm0mjrNMNZlEezjRpgRHxIua2FDY4JcTeuwNVWnVL5D5uGemG5IO9UGkLRvhjVFtT3v-1qHxMGrp2F3RpWGsvKPqCGDTOLzGAraNhZwgYZ3JYJSdAxmNj8SxVrE' }}
                 style={styles.avatar}
               />
             </View>
             <View>
-              <Text style={styles.greeting}>{getGreeting()}</Text>
-              <Text style={styles.userName}>{userName}</Text>
+              <Text style={[styles.greeting, { color: tc.textDim }]}>{getGreeting()}</Text>
+              <Text style={[styles.userName, { color: tc.text }]}>{userName}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.searchIconBtn}>
-            <Icon name="search" size={20} color={COLORS.textMuted} />
+          <TouchableOpacity style={[styles.searchIconBtn, { backgroundColor: tc.surfaceCard }]}>
+            <Icon name="search" size={20} color={tc.textMuted} />
           </TouchableOpacity>
         </View>
 
         {/* Search */}
-        <View style={styles.searchWrap}>
-          <Icon name="search" size={20} color={COLORS.textDim} style={styles.searchIcon} />
+        <View style={[styles.searchWrap, { backgroundColor: tc.surfaceCard }]}>
+          <Icon name="search" size={20} color={tc.textDim} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: tc.text }]}
             placeholder="Search courses, mentors..."
-            placeholderTextColor={COLORS.textDim}
+            placeholderTextColor={tc.textDim}
             value={search}
             onChangeText={setSearch}
           />
@@ -208,9 +211,9 @@ export default function StudentDashboard() {
         {/* Continue Learning */}
         <View style={styles.section}>
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Continue Learning</Text>
+            <Text style={[styles.sectionTitle, { color: tc.text }]}>Continue Learning</Text>
             <TouchableOpacity onPress={goToLearnerAllCourses}>
-              <Text style={styles.linkText}>View All</Text>
+              <Text style={[styles.linkText, { color: tc.primary }]}>View All</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity
@@ -229,18 +232,18 @@ export default function StudentDashboard() {
                   <Text style={styles.continueTitle} numberOfLines={2}>{continueTitle}</Text>
                 </View>
                 <View style={styles.playBtn}>
-                  <Icon name="play_arrow" size={24} color={COLORS.white} />
+                  <Icon name="play_arrow" size={24} color={tc.white} />
                 </View>
               </View>
               <View style={styles.progressWrap}>
                 <View style={styles.progressLabels}>
-                  <Text style={styles.progressLabel}>Progress</Text>
-                  <Text style={styles.progressPct}>{continueProgress}%</Text>
+                  <Text style={[styles.progressLabel, { color: tc.textMuted }]}>Progress</Text>
+                  <Text style={[styles.progressPct, { color: tc.text }]}>{continueProgress}%</Text>
                 </View>
                 <View style={styles.progressTrack}>
                   <View style={[styles.progressFill, { width: `${continueProgress}%` }]} />
                 </View>
-                <Text style={styles.progressSub}>
+                <Text style={[styles.progressSub, { color: tc.textMuted }]}>
                   {Math.round((continueProgress / 100) * 16)} of 16 lessons completed
                 </Text>
               </View>
@@ -251,40 +254,40 @@ export default function StudentDashboard() {
         {/* Enrolled Courses */}
         <View style={styles.section}>
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Enrolled Courses</Text>
+            <Text style={[styles.sectionTitle, { color: tc.text }]}>Enrolled Courses</Text>
             <TouchableOpacity onPress={goToLearnerAllCourses}>
-              <Text style={styles.linkText}>View All</Text>
+              <Text style={[styles.linkText, { color: tc.primary }]}>View All</Text>
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.enrolledScroll}>
-            {enrolledForCards.map((c, idx) => {
-              const thumbUri = resolveThumbnail(c.thumbnail_url);
+            {enrolledForCards.map((card, idx) => {
+              const thumbUri = resolveThumbnail(card.thumbnail_url);
               return (
               <TouchableOpacity
-                key={c.id ?? c.course_id ?? idx}
-                style={styles.enrolledCard}
-                onPress={() => goToCourseDetail(String(c.id ?? c.course_id ?? ''))}
+                key={card.id ?? card.course_id ?? idx}
+                style={[styles.enrolledCard, { backgroundColor: tc.surfaceCard }]}
+                onPress={() => goToCourseDetail(String(card.id ?? card.course_id ?? ''))}
                 activeOpacity={0.9}
               >
                 {thumbUri ? (
                   <Image source={{ uri: thumbUri }} style={styles.enrolledImage} />
                 ) : (
-                  <View style={[styles.enrolledImage, styles.enrolledImageFallback]}>
-                    <Icon name="school" size={32} color={COLORS.textDim} />
+                  <View style={[styles.enrolledImage, styles.enrolledImageFallback, { backgroundColor: tc.surface }]}>
+                    <Icon name="school" size={32} color={tc.textDim} />
                   </View>
                 )}
-                <Text style={styles.enrolledTitle} numberOfLines={1}>{c.title ?? c.name ?? 'Course'}</Text>
+                <Text style={[styles.enrolledTitle, { color: tc.text }]} numberOfLines={1}>{card.title ?? card.name ?? 'Course'}</Text>
                 <View style={styles.enrolledProgressTrack}>
                   <View
                     style={[
                       styles.enrolledProgressFill,
-                      { width: `${c.progress ?? 0}%` },
-                      (c.progress ?? 0) >= 80 && { backgroundColor: COLORS.emerald },
-                      (c.progress ?? 0) < 30 && (c.progress ?? 0) > 0 && { backgroundColor: COLORS.orange },
+                      { width: `${card.progress ?? 0}%` },
+                      (card.progress ?? 0) >= 80 && { backgroundColor: COLORS.emerald },
+                      (card.progress ?? 0) < 30 && (card.progress ?? 0) > 0 && { backgroundColor: COLORS.orange },
                     ]}
                   />
                 </View>
-                <Text style={styles.enrolledPct}>{c.progress ?? 0}% Complete</Text>
+                <Text style={[styles.enrolledPct, { color: tc.textMuted }]}>{card.progress ?? 0}% Complete</Text>
               </TouchableOpacity>
               );
             })}
@@ -293,19 +296,19 @@ export default function StudentDashboard() {
 
         {/* Verticals – same names + emojis as home */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Verticals</Text>
+          <Text style={[styles.sectionTitle, { color: tc.text }]}>Verticals</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.verticalsScroll}>
             {VERTICALS.map((v) => (
               <TouchableOpacity
                 key={v.id}
-                style={styles.verticalItem}
+                style={[styles.verticalItem, { backgroundColor: tc.surfaceCard }]}
                 onPress={() => goToCoursesWithVertical(v.name)}
                 activeOpacity={0.8}
               >
-                <View style={styles.verticalIconBox}>
+                <View style={[styles.verticalIconBox, { backgroundColor: tc.surface }]}>
                   <Text style={styles.verticalEmoji}>{v.emoji}</Text>
                 </View>
-                <Text style={styles.verticalLabel} numberOfLines={2}>{v.name}</Text>
+                <Text style={[styles.verticalLabel, { color: tc.text }]} numberOfLines={2}>{v.name}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -314,39 +317,39 @@ export default function StudentDashboard() {
         {/* All courses – from GET /api/courses (live website) */}
         <View style={styles.section}>
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>All courses</Text>
+            <Text style={[styles.sectionTitle, { color: tc.text }]}>All courses</Text>
             <TouchableOpacity onPress={goToLearnerAllCourses}>
-              <Text style={styles.linkText}>See More</Text>
+              <Text style={[styles.linkText, { color: tc.primary }]}>See More</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.allCoursesList}>
-            {allCourses.map((c) => {
-              const id = String(c.course_id ?? c.id ?? '');
-              const thumbUri = resolveThumbnail(c.thumbnail_url);
+            {allCourses.map((course) => {
+              const id = String(course.course_id ?? course.id ?? '');
+              const thumbUri = resolveThumbnail(course.thumbnail_url);
               return (
               <TouchableOpacity
                 key={id}
-                style={styles.allCourseRow}
+                style={[styles.allCourseRow, { backgroundColor: tc.surfaceCard }]}
                 onPress={() => id && goToCourseDetail(id)}
                 activeOpacity={0.8}
               >
                 {thumbUri ? (
                   <Image source={{ uri: thumbUri }} style={styles.allCourseThumb} />
                 ) : (
-                  <View style={[styles.allCourseThumb, styles.enrolledImageFallback]}>
-                    <Icon name="school" size={24} color={COLORS.textDim} />
+                  <View style={[styles.allCourseThumb, styles.enrolledImageFallback, { backgroundColor: tc.surface }]}>
+                    <Icon name="school" size={24} color={tc.textDim} />
                   </View>
                 )}
                 <View style={styles.allCourseBody}>
-                  <Text style={styles.allCourseTitle} numberOfLines={2}>{c.title ?? c.name ?? 'Course'}</Text>
+                  <Text style={[styles.allCourseTitle, { color: tc.text }]} numberOfLines={2}>{course.title ?? course.name ?? 'Course'}</Text>
                   <View style={styles.instructorRow}>
-                    <Icon name="person" size={14} color={COLORS.textDim} />
-                    <Text style={styles.instructorName}>{c.instructor_name ?? 'Instructor'}</Text>
+                    <Icon name="person" size={14} color={tc.textDim} />
+                    <Text style={[styles.instructorName, { color: tc.textDim }]}>{course.instructor_name ?? 'Instructor'}</Text>
                   </View>
                   <View style={styles.allCourseFooter}>
                     <View style={styles.ratingRow}>
                       <Icon name="star" size={14} color={COLORS.yellow} />
-                      <Text style={styles.ratingText}>{c.average_rating != null ? c.average_rating.toFixed(1) : '--'}</Text>
+                      <Text style={[styles.ratingText, { color: tc.text }]}>{course.average_rating != null ? course.average_rating.toFixed(1) : '--'}</Text>
                     </View>
                   </View>
                 </View>
@@ -360,29 +363,29 @@ export default function StudentDashboard() {
       </ScrollView>
 
       {/* Bottom nav */}
-      <View style={styles.bottomNav}>
+      <View style={[styles.bottomNav, { backgroundColor: tc.surfaceCard, borderColor: tc.border }]}>
         <TouchableOpacity style={styles.navItem} onPress={goToLearnerHome}>
-          <Icon name="home" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Home</Text>
+          <Icon name="home" size={24} color={tc.textMuted} />
+          <Text style={[styles.navLabel, { color: tc.textMuted }]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem}>
-          <Icon name="dashboard" size={24} color={COLORS.primary} />
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Dashboard</Text>
+          <Icon name="dashboard" size={24} color={tc.primary} />
+          <Text style={[styles.navLabel, styles.navLabelActive, { color: tc.primary }]}>Dashboard</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToLiveClasses}>
-          <Icon name="live_tv" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Live Classes</Text>
+          <Icon name="live_tv" size={24} color={tc.textMuted} />
+          <Text style={[styles.navLabel, { color: tc.textMuted }]}>Live Classes</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToNotifications}>
           <View>
-            <Icon name="notifications" size={24} color={COLORS.textMuted} />
-            <View style={styles.badgeDot} />
+            <Icon name="notifications" size={24} color={tc.textMuted} />
+            <View style={[styles.badgeDot, { backgroundColor: tc.primary }]} />
           </View>
-          <Text style={styles.navLabel}>Notifications</Text>
+          <Text style={[styles.navLabel, { color: tc.textMuted }]}>Notifications</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('LearnerProfile')}>
-          <Icon name="person" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Profile</Text>
+          <Icon name="person" size={24} color={tc.textMuted} />
+          <Text style={[styles.navLabel, { color: tc.textMuted }]}>Profile</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -535,13 +538,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    zIndex: 10,
+    elevation: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 32,
-    backgroundColor: 'rgba(16,22,34,0.95)',
+    backgroundColor: '#1e293b',
     borderTopWidth: 1,
     borderColor: COLORS.border,
   },

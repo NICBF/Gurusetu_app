@@ -17,8 +17,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
-import { getLiveNow, getUpcomingClasses, type LiveSession, type UpcomingClass } from '../services/liveClassesService';
+import { getLiveClassesAll, type LiveSession, type UpcomingClass } from '../services/liveClassesService';
 import Icon from '../components/Icon';
+import { useTheme } from '../theme/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;
@@ -40,31 +41,10 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const FILTERS = ['All', 'Design', 'Development', 'Marketing', 'Business'];
 
-const FALLBACK_LIVE: LiveSession[] = [
-  {
-    id: '1',
-    title: 'Advanced UI Component Architecture',
-    instructor_name: 'Alex Rivers',
-    instructor_avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDtWJNRhLmIPJU0HdTN8diJE_OXPhN7LMKR4AUdp_Ca3OljPXfywEhYB-uzrtwgvmAcmnA-nDO9NIgtB_tQd33e7a7NB3Oi7LTDdPUaNjDROr7AnMDqdTBWVCWvnD5osnd_pwO13jvjEZfJsMcP2rP7_N3ftJxFC02Z2sqw2pCtZjRY_st9ygEbbXl4yccHAD51ooBnk8GsRpWoC9Ptr3huasjFfuOjioQkLFhY06XOYHaV9ZS6mK-AgU32Wwl4Yo9yTrrMRrXSFYY',
-    thumbnail_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDVJmcQZ5PBT8mL9UWJPLYeTD3_CbYKZPje-wChO6uX1lQrr0bh1310yC54kQpO4VWiRxWsVsoV_JrUy442ccX5ea75pg079z8GFc3zlRocsRqyhZXwBhbgHo6CbPHbSM-v6vqND_NfyZr38CB0VTAgiXf6mRTew6M8JiOqOFP-iKGGxD5vNv2YreNjuGqDg-moZdistgzqhSwUTFljq696dGC9GlC6zHN-mqFnH7YllXQ-Sn3FX3TV6NQWhjpBeCrUcVgOqYhPHu8',
-  },
-  {
-    id: '2',
-    title: 'Growth Marketing Masterclass',
-    instructor_name: 'Sarah Chen',
-    instructor_avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAmYpONVI7aFDjzeOtChwAEalDSOS6QxZIdzCAAyzFPKe6YI2tdBqISZtqpjL9aGEKO4eQQmJDJMOjmtlq0r7sQCOYZ1dcGVdAP67OG69tx6ThWidjJGjwn4uoMaQQAyZTr9iNztSXFsGOlPYUtznvM9Om6c5BrQsMIKo1QdVky8VDcdGM5aW4PnjBHzDqxjH-Nx8Y7IojcSUvfzNCIME-6mPQekDRViwxkwyiG7ptAO5HpeyiAwF9y7JFojmd7BHelpOdnELpKurw',
-    thumbnail_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB3qCuN0b_wo5omd2E4dw0EqfYoX3vDuK_gFgQUL46WuTVDrQ2ZCPPQl0m_UO7DINGuGYp-0HzXbc8lLrQRJX8YdEu04H-a568pjkbJHMCmzrKw_87bj5rSigMCSJbza058Lzo943IiUyFati16rzgtxLR_fCNtSflPky-U3xNEexhkVHYwFfZZ2NRWXR5Iz_8eWIYd9_FgLh2qRJQhvBxnZNIXygcUHRsJfHXLVKgX01v-DIxIbI-Nc4KmZCEFgA_tYFG0TvJcqJc',
-  },
-];
-
-const FALLBACK_UPCOMING: UpcomingClass[] = [
-  { id: 'u1', title: 'Product Management Fundamentals', instructor_name: 'Marcus Thorne', category: 'Business', starts_at: '14:00', starts_in_label: 'Starts in 45m', reminder_on: false },
-  { id: 'u2', title: 'React Server Components 101', instructor_name: 'Elena Rodriguez', category: 'Coding', starts_at: '16:30', starts_in_label: 'Today', reminder_on: true },
-  { id: 'u3', title: 'SEO Writing that Converts', instructor_name: 'Jamie Smith', category: 'Marketing', starts_at: '18:00', starts_in_label: 'Today', reminder_on: false },
-];
-
 export default function LearnerLiveClassScreen() {
   const navigation = useNavigation<Nav>();
+  const { theme } = useTheme();
+  const c = theme.colors;
   const [filter, setFilter] = useState('All');
   const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingClass[]>([]);
@@ -75,15 +55,15 @@ export default function LearnerLiveClassScreen() {
     (async () => {
       setLoading(true);
       try {
-        const [live, up] = await Promise.all([getLiveNow(), getUpcomingClasses()]);
+        const { live, upcoming } = await getLiveClassesAll();
         if (!cancelled) {
-          setLiveSessions(live.length ? live : FALLBACK_LIVE);
-          setUpcoming(up.length ? up : FALLBACK_UPCOMING);
+          setLiveSessions(live);
+          setUpcoming(upcoming);
         }
-      } catch (e) {
+      } catch {
         if (!cancelled) {
-          setLiveSessions(FALLBACK_LIVE);
-          setUpcoming(FALLBACK_UPCOMING);
+          setLiveSessions([]);
+          setUpcoming([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -111,37 +91,45 @@ export default function LearnerLiveClassScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingPage}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading live classes...</Text>
+      <View style={[styles.loadingPage, { backgroundColor: c.background }]}>
+        <ActivityIndicator size="large" color={c.primary} />
+        <Text style={[styles.loadingText, { color: c.textMuted }]}>Loading live classes...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.page}>
+    <View style={[styles.page, { backgroundColor: c.background }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Filter chips */}
         <View style={styles.chipsWrap}>
           {FILTERS.map((f) => (
             <TouchableOpacity
               key={f}
-              style={[styles.chip, f === filter && styles.chipActive]}
+              style={[styles.chip, { backgroundColor: f === filter ? c.primary : c.surfaceCard }, f === filter && styles.chipActive]}
               onPress={() => setFilter(f)}
             >
-              <Text style={[styles.chipText, f === filter && styles.chipTextActive]}>{f}</Text>
+              <Text style={[styles.chipText, { color: f === filter ? c.white : c.textMuted }, f === filter && styles.chipTextActive]}>{f}</Text>
             </TouchableOpacity>
           ))}
         </View>
+
+        {!loading && liveSessions.length === 0 && upcoming.length === 0 && (
+          <View style={styles.emptyState}>
+            <Icon name="live_tv" size={48} color={c.textDim} />
+            <Text style={[styles.emptyTitle, { color: c.text }]}>No live classes right now</Text>
+            <Text style={[styles.emptySubtext, { color: c.textMuted }]}>Scheduled sessions will appear here. Check back later.</Text>
+          </View>
+        )}
 
         {/* Live Now */}
         <View style={styles.section}>
           <View style={styles.sectionRow}>
             <View style={styles.liveNowTitleRow}>
               <View style={styles.liveDot} />
-              <Text style={styles.sectionTitle}>Live Now</Text>
+              <Text style={[styles.sectionTitle, { color: c.text }]}>Live Now</Text>
             </View>
-            <Text style={styles.activeCount}>{liveSessions.length} active</Text>
+            <Text style={[styles.activeCount, { color: c.primary }]}>{liveSessions.length} active</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveScroll}>
             {liveSessions.map((session) => (
@@ -171,34 +159,34 @@ export default function LearnerLiveClassScreen() {
         {/* Upcoming Classes */}
         <View style={styles.section}>
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Upcoming Classes</Text>
-            <Text style={styles.seeAllMuted}>See All</Text>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Upcoming Classes</Text>
+            <Text style={[styles.seeAllMuted, { color: c.textDim }]}>See All</Text>
           </View>
           <View style={styles.upcomingList}>
-            {upcoming.map((c) => {
-              const isPrimary = c.starts_in_label?.toLowerCase().includes('starts') ?? false;
-              const reminderOn = reminders[c.id] ?? c.reminder_on ?? false;
+            {upcoming.map((cls) => {
+              const isPrimary = cls.starts_in_label?.toLowerCase().includes('starts') ?? false;
+              const reminderOn = reminders[cls.id] ?? cls.reminder_on ?? false;
               return (
-                <View key={c.id} style={styles.upcomingCard}>
-                  <View style={[styles.timeBox, isPrimary && styles.timeBoxPrimary]}>
-                    <Text style={[styles.timeText, isPrimary && styles.timeTextPrimary]}>{c.starts_at}</Text>
-                    <Text style={[styles.timeLabel, isPrimary && styles.timeLabelPrimary]}>
-                      {c.starts_in_label ?? 'Today'}
+                <View key={cls.id} style={[styles.upcomingCard, { backgroundColor: c.surfaceCard, borderColor: c.border }]}>
+                  <View style={[styles.timeBox, { backgroundColor: isPrimary ? c.primary + '20' : c.surface }, isPrimary && styles.timeBoxPrimary]}>
+                    <Text style={[styles.timeText, { color: isPrimary ? c.primary : c.textMuted }, isPrimary && styles.timeTextPrimary]}>{cls.starts_at}</Text>
+                    <Text style={[styles.timeLabel, { color: isPrimary ? c.primary : c.textDim }, isPrimary && styles.timeLabelPrimary]}>
+                      {cls.starts_in_label ?? 'Today'}
                     </Text>
                   </View>
                   <View style={styles.upcomingBody}>
-                    <Text style={styles.upcomingTitle} numberOfLines={1}>{c.title}</Text>
+                    <Text style={[styles.upcomingTitle, { color: c.text }]} numberOfLines={1}>{cls.title}</Text>
                     <View style={styles.upcomingMeta}>
-                      <Text style={styles.upcomingMetaText}>by {c.instructor_name}</Text>
-                      <Text style={styles.upcomingDot}>•</Text>
-                      <Text style={styles.upcomingMetaText}>{c.category ?? 'General'}</Text>
+                      <Text style={[styles.upcomingMetaText, { color: c.textDim }]}>by {cls.instructor_name}</Text>
+                      <Text style={[styles.upcomingDot, { color: c.border }]}>•</Text>
+                      <Text style={[styles.upcomingMetaText, { color: c.textDim }]}>{cls.category ?? 'General'}</Text>
                     </View>
                   </View>
                   <TouchableOpacity
-                    style={[styles.bellBtn, reminderOn && styles.bellBtnActive]}
-                    onPress={() => toggleReminder(c.id)}
+                    style={[styles.bellBtn, { backgroundColor: c.surface }, reminderOn && styles.bellBtnActive]}
+                    onPress={() => toggleReminder(cls.id)}
                   >
-                    <Icon name="notifications" size={20} color={reminderOn ? COLORS.primary : COLORS.textDim} />
+                    <Icon name="notifications" size={20} color={reminderOn ? c.primary : c.textDim} />
                   </TouchableOpacity>
                 </View>
               );
@@ -210,29 +198,36 @@ export default function LearnerLiveClassScreen() {
       </ScrollView>
 
       {/* Bottom nav */}
-      <View style={styles.bottomNav}>
+      <View style={[styles.bottomNav, { backgroundColor: c.surfaceCard, borderColor: c.border }]}>
         <TouchableOpacity style={styles.navItem} onPress={goToLearnerHome}>
-          <Icon name="home" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Home</Text>
+          <Icon name="home" size={24} color={c.textMuted} />
+          <Text style={[styles.navLabel, { color: c.textMuted }]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToDashboard}>
-          <Icon name="dashboard" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Dashboard</Text>
+          <Icon name="dashboard" size={24} color={c.textMuted} />
+          <Text style={[styles.navLabel, { color: c.textMuted }]}>Dashboard</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('LearnerProfile')}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => {}}
+          activeOpacity={1}
+        >
           <View>
-            <Icon name="live_tv" size={24} color={COLORS.primary} />
-            <View style={styles.navLiveDot} />
+            <Icon name="live_tv" size={24} color={c.primary} />
+            <View style={styles.navLiveDot} pointerEvents="none" />
           </View>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Live Classes</Text>
+          <Text style={[styles.navLabel, styles.navLabelActive, { color: c.primary }]}>Live Classes</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToNotifications}>
-          <Icon name="notifications" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Notifications</Text>
+          <Icon name="notifications" size={24} color={c.textMuted} />
+          <Text style={[styles.navLabel, { color: c.textMuted }]}>Notifications</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Icon name="person" size={24} color={COLORS.textMuted} />
-          <Text style={styles.navLabel}>Profile</Text>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate('LearnerProfile')}
+        >
+          <Icon name="person" size={24} color={c.textMuted} />
+          <Text style={[styles.navLabel, { color: c.textMuted }]}>Profile</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -243,6 +238,9 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: COLORS.backgroundDark },
   loadingPage: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.backgroundDark },
   loadingText: { marginTop: 12, fontSize: 14, color: COLORS.textMuted },
+  emptyState: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24 },
+  emptyTitle: { fontSize: 18, fontWeight: '600', color: COLORS.text, marginTop: 16 },
+  emptySubtext: { fontSize: 14, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
   chipsWrap: { flexDirection: 'row', gap: 8, marginBottom: 16 },
@@ -349,17 +347,19 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    zIndex: 10,
+    elevation: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 32,
-    backgroundColor: 'rgba(16,22,34,0.95)',
+    backgroundColor: '#1e293b',
     borderTopWidth: 1,
     borderColor: COLORS.border,
   },
-  navItem: { alignItems: 'center', minWidth: 48 },
+  navItem: { alignItems: 'center', flex: 1, maxWidth: 80 },
   navLabel: { fontSize: 10, fontWeight: '500', color: COLORS.textMuted, marginTop: 4 },
   navLabelActive: { color: COLORS.primary },
   navLiveDot: {
