@@ -36,6 +36,7 @@ module.exports = {
     web: {
       favicon: './assets/favicon.png',
     },
+    plugins: ['expo-video'],
     extra: {
       eas: {
         projectId: '3e2bfbaa-4e4e-42bd-bfbb-92102f545ef1',

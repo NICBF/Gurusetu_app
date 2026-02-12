@@ -254,6 +254,13 @@
 - **Headers/Auth:** JWT
 - **Used In:** course cards, dashboard “enroll” buttons
 
+#### GET `/api/live-classes`
+- **Endpoint:** `/api/live-classes` (or `/api/live-classes/now`, `/api/live-classes/upcoming`)
+- **Method:** GET
+- **Response:** `{ live?: LiveSession[], upcoming?: UpcomingClass[] }` or split endpoints
+- **Headers/Auth:** JWT (recommended)
+- **Used In:** Live Classes screen (mobile + live website). Read-only.
+
 ---
 
 ### Video & Progress
