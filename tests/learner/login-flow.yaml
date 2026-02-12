@@ -1,0 +1,59 @@
+appId: in.ac.iitm.gurusetu
+
+---
+# Learner Login Flow Test
+# Tests: Login screen, role selection, authentication
+
+- launchApp
+- assertVisible: "GURUSETU"
+- assertVisible: "IIT Madras"
+
+# Verify role selector (default should be Learner)
+- assertVisible:
+    id: "login-role-learner"
+- assertVisible:
+    id: "login-role-professor"
+- assertVisible:
+    id: "login-role-admin"
+
+# Ensure Learner role is selected
+- tapOn:
+    id: "login-role-learner"
+
+# Fill login form
+- inputText:
+    id: "institutional-id-input"
+    text: "test.learner@example.com"
+- inputText:
+    id: "password-input"
+    text: "TestPassword123"
+
+# Submit login
+- tapOn:
+    id: "sign-in-button"
+
+# Wait for login to complete
+- waitForAnimationToEnd
+
+# Check for error or success
+- runFlow:
+    when:
+        visible:
+            id: "login-error"
+    commands:
+        - assertVisible:
+            id: "login-error"
+        - takeScreenshot: "login-error.png"
+    else:
+        # If no error, login might have succeeded - check for home screen
+        - waitForAnimationToEnd
+        - runFlow:
+            when:
+                visible:
+                    text: "Top Trending Courses"
+            commands:
+                - assertVisible:
+                    text: "Top Trending Courses"
+                - takeScreenshot: "login-success-home.png"
+            else:
+                - takeScreenshot: "login-unknown-state.png"

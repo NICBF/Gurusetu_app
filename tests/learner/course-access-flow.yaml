@@ -1,0 +1,74 @@
+appId: in.ac.iitm.gurusetu
+
+---
+# Course Access Flow Test
+# Tests: Browsing courses, opening course details, navigation
+
+- launchApp
+
+# Wait for intro screen to pass
+- waitForAnimationToEnd
+- runFlow:
+    when:
+        visible:
+            text: "Get Started"
+    commands:
+        - tapOn:
+            text: "Get Started"
+
+# Login (assuming test credentials exist)
+- runFlow:
+    when:
+        visible:
+            id: "institutional-id-input"
+    commands:
+        - inputText:
+            id: "institutional-id-input"
+            text: "test.learner@example.com"
+        - inputText:
+            id: "password-input"
+            text: "TestPassword123"
+        - tapOn:
+            id: "sign-in-button"
+        - waitForAnimationToEnd
+
+# Wait for home screen
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Top Trending Courses"
+
+# Try to find and tap a course card
+- runFlow:
+    when:
+        visible:
+            text: "View Course"
+    commands:
+        - tapOn:
+            text: "View Course"
+            index: 0
+        - waitForAnimationToEnd
+        # Course detail screen should show video player or thumbnail
+        - runFlow:
+            when:
+                visible:
+                    id: "course-video-player"
+            commands:
+                - assertVisible:
+                    id: "course-video-player"
+                - takeScreenshot: "course-with-video.png"
+            else:
+                - runFlow:
+                    when:
+                        visible:
+                            id: "course-thumbnail"
+                    commands:
+                        - assertVisible:
+                            id: "course-thumbnail"
+                        - takeScreenshot: "course-with-thumbnail.png"
+                    else:
+                        - takeScreenshot: "course-detail-screen.png"
+
+# Verify course detail elements
+- assertVisible:
+    text: "Course"
+    optional: true

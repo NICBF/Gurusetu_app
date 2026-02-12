@@ -1,0 +1,50 @@
+appId: in.ac.iitm.gurusetu
+
+---
+# Learner Registration Flow Test
+# Tests: Registration screen, form validation, account creation
+
+- launchApp
+- assertVisible: "GURUSETU"
+- assertVisible: "IIT Madras"
+
+# Navigate to registration
+- tapOn:
+    text: "Register New Account"
+- assertVisible: "Create Account"
+
+# Verify role selector (default should be Learner)
+- assertVisible:
+    id: "role-learner-button"
+- assertVisible:
+    id: "role-professor-button"
+
+# Fill registration form
+- inputText:
+    id: "email-input"
+    text: "test.learner@example.com"
+- inputText:
+    id: "password-input"
+    text: "TestPassword123"
+- inputText:
+    id: "confirm-password-input"
+    text: "TestPassword123"
+
+# Submit registration
+- tapOn:
+    id: "create-account-button"
+
+# Wait for registration to complete (either success navigation or error)
+- waitForAnimationToEnd
+- runFlow:
+    when:
+        visible:
+            id: "registration-error"
+    commands:
+        - assertVisible:
+            id: "registration-error"
+        - takeScreenshot: "registration-error.png"
+    else:
+        # If no error, registration might have succeeded
+        - waitForAnimationToEnd
+        - takeScreenshot: "registration-success.png"

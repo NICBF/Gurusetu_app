@@ -1,0 +1,132 @@
+appId: in.ac.iitm.gurusetu
+
+---
+# Complete Learner Journey Test
+# End-to-end test: Registration → Login → Browse Courses → Access Video
+
+- launchApp
+- assertVisible: "GURUSETU"
+
+# Step 1: Navigate to Registration
+- tapOn:
+    text: "Register New Account"
+- assertVisible: "Create Account"
+
+# Step 2: Fill Registration Form
+- assertVisible:
+    id: "role-learner-button"
+- inputText:
+    id: "email-input"
+    text: "e2e.test.learner@example.com"
+- inputText:
+    id: "password-input"
+    text: "E2ETestPassword123"
+- inputText:
+    id: "confirm-password-input"
+    text: "E2ETestPassword123"
+
+# Step 3: Submit Registration
+- tapOn:
+    id: "create-account-button"
+- waitForAnimationToEnd
+
+# Step 4: Handle Registration Result
+- runFlow:
+    when:
+        visible:
+            id: "registration-error"
+    commands:
+        # Registration failed - try login instead
+        - takeScreenshot: "registration-failed.png"
+        - tapOn:
+            id: "sign-in-link"
+        - waitForAnimationToEnd
+    else:
+        # Registration might have succeeded
+        - waitForAnimationToEnd
+
+# Step 5: Login (if not already logged in)
+- runFlow:
+    when:
+        visible:
+            id: "institutional-id-input"
+    commands:
+        - assertVisible:
+            id: "login-role-learner"
+        - tapOn:
+            id: "login-role-learner"
+        - inputText:
+            id: "institutional-id-input"
+            text: "e2e.test.learner@example.com"
+        - inputText:
+            id: "password-input"
+            text: "E2ETestPassword123"
+        - tapOn:
+            id: "sign-in-button"
+        - waitForAnimationToEnd
+
+# Step 6: Verify Home Screen
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Top Trending Courses"
+
+# Step 7: Browse and Open Course
+- runFlow:
+    when:
+        visible:
+            text: "View Course"
+    commands:
+        - tapOn:
+            text: "View Course"
+            index: 0
+        - waitForAnimationToEnd
+
+# Step 8: Verify Course Detail Screen
+- runFlow:
+    when:
+        visible:
+            id: "course-video-player"
+    commands:
+        - assertVisible:
+            id: "course-video-player"
+        - takeScreenshot: "course-detail-with-video.png"
+    else:
+        - runFlow:
+            when:
+                visible:
+                    id: "course-thumbnail"
+            commands:
+                - assertVisible:
+                    id: "course-thumbnail"
+                - takeScreenshot: "course-detail-with-thumbnail.png"
+            else:
+                - takeScreenshot: "course-detail-screen.png"
+
+# Step 9: Verify Video Player (if present)
+- runFlow:
+    when:
+        visible:
+            id: "drive-video-player"
+    commands:
+        - assertVisible:
+            id: "drive-video-player"
+        - assertVisible:
+            id: "drive-webview"
+        - assertNotVisible:
+            id: "video-error"
+        - waitForAnimationToEnd
+        - takeScreenshot: "video-player-verified.png"
+
+# Step 10: Check for Feedback Button (if video exists)
+- runFlow:
+    when:
+        visible:
+            id: "rate-session-button"
+    commands:
+        - assertVisible:
+            id: "rate-session-button"
+        - takeScreenshot: "feedback-button-visible.png"
+
+# Final verification - no crashes
+- assertNotVisible:
+    id: "video-error"

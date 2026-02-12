@@ -1,0 +1,92 @@
+appId: in.ac.iitm.gurusetu
+
+---
+# Video Player Flow Test
+# Tests: Video player screen visibility, WebView rendering, no crashes
+# Note: Cannot test Google Drive player controls (iframe sandbox restriction)
+
+- launchApp
+
+# Navigate to login if needed
+- waitForAnimationToEnd
+- runFlow:
+    when:
+        visible:
+            id: "institutional-id-input"
+    commands:
+        - inputText:
+            id: "institutional-id-input"
+            text: "test.learner@example.com"
+        - inputText:
+            id: "password-input"
+            text: "TestPassword123"
+        - tapOn:
+            id: "sign-in-button"
+        - waitForAnimationToEnd
+
+# Navigate to a course with video
+- waitForAnimationToEnd
+- runFlow:
+    when:
+        visible:
+            text: "View Course"
+    commands:
+        - tapOn:
+            text: "View Course"
+            index: 0
+        - waitForAnimationToEnd
+
+# Check for video player
+- runFlow:
+    when:
+        visible:
+            id: "course-video-player"
+    commands:
+        # Video player container is visible
+        - assertVisible:
+            id: "course-video-player"
+        
+        # Check for Drive video player (WebView)
+        - runFlow:
+            when:
+                visible:
+                    id: "drive-video-player"
+            commands:
+                - assertVisible:
+                    id: "drive-video-player"
+                - assertVisible:
+                    id: "drive-webview"
+                # Wait for video to load (no loading indicator)
+                - waitForAnimationToEnd
+                - runFlow:
+                    when:
+                        visible:
+                            id: "video-loading"
+                    commands:
+                        - waitForAnimationToEnd
+                        - assertNotVisible:
+                            id: "video-loading"
+                    else:
+                        # Video already loaded
+                        - assertNotVisible:
+                            id: "video-error"
+                - takeScreenshot: "video-player-loaded.png"
+            else:
+                # Native video player
+                - takeScreenshot: "native-video-player.png"
+    else:
+        # No video, just thumbnail
+        - runFlow:
+            when:
+                visible:
+                    id: "course-thumbnail"
+            commands:
+                - assertVisible:
+                    id: "course-thumbnail"
+                - takeScreenshot: "course-thumbnail-only.png"
+            else:
+                - takeScreenshot: "no-video-found.png"
+
+# Verify no crashes occurred
+- assertNotVisible:
+    id: "video-error"
