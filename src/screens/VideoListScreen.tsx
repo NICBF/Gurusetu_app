@@ -9,7 +9,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import api from '../services/api';
 import { getVideoPlayableUrl } from '../utils/videoUrl';
-import { API_BASE } from '../config';
+import { resolveThumbnailUrl } from '../utils/mediaUrl';
 
 type Route = RouteProp<RootStackParamList, 'VideoList'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -114,14 +114,9 @@ export default function VideoListScreen() {
     });
   };
 
-  const renderItem = ({ item }: { item: Lecture }) => {
+  const   renderItem = ({ item }: { item: Lecture }) => {
     const title = item.title ?? item.name ?? `Lecture ${item.id}`;
-    let thumbnail = item.thumbnail_url;
-    // Make thumbnail URL absolute if relative
-    if (thumbnail && !thumbnail.startsWith('http')) {
-      const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
-      thumbnail = base ? `${base}${thumbnail.startsWith('/') ? '' : '/'}${thumbnail}` : null;
-    }
+    const thumbnail = resolveThumbnailUrl(item.thumbnail_url);
     const duration = formatDuration(item.duration_seconds);
     const hasVideo = !!item.video_path;
 
