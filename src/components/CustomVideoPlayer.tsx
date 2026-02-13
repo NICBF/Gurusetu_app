@@ -42,12 +42,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const driveEmbedUrl = !isDriveVideo ? getDriveEmbedUrlFromStreamUri(videoUri) : null;
   const finalVideoUri = driveEmbedUrl || videoUri;
   const usingDrive = isDriveVideo || !!driveEmbedUrl;
-  
-  console.log('[CustomVideoPlayer] videoUri:', videoUri);
-  console.log('[CustomVideoPlayer] isDriveVideo (direct):', isDriveVideo);
-  console.log('[CustomVideoPlayer] driveEmbedUrl (from stream):', driveEmbedUrl);
-  console.log('[CustomVideoPlayer] finalVideoUri:', finalVideoUri);
-  console.log('[CustomVideoPlayer] Using player:', usingDrive ? 'WebView (Google Drive)' : 'expo-video (NativeVideoPlayer)');
+
+  // Log once on mount so tapping Quizzes etc. doesn't flood terminal with video logs
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('[CustomVideoPlayer] Using player:', usingDrive ? 'WebView (Google Drive)' : 'expo-video');
+    }
+  }, [usingDrive]);
 
   // Google Drive: use dedicated DriveVideoPlayer component (WebView only, no custom controls)
   if (usingDrive) {
