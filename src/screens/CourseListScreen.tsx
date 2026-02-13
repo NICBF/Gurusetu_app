@@ -18,8 +18,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import api from '../services/api';
-import { API_BASE } from '../config';
-import { getDisplayableImageUrl } from '../utils/mediaUrl';
+import { getMediaBase } from '../config';
+import { getDisplayableImageUrl, resolveThumbnailUrl } from '../utils/mediaUrl';
 
 const THUMBNAIL_ASPECT_RATIO = 16 / 9;
 
@@ -128,12 +128,8 @@ export default function CourseListScreen() {
     const name = item.name ?? item.title ?? `Course ${item.id ?? item.course_id}`;
     const courseId = String(item.course_id ?? item.id);
     const isEnrolled = enrolledCourseIds.has(courseId);
-    const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
-    let thumbnail = item.thumbnail_url ?? item.thumbnail;
-    if (thumbnail && !thumbnail.startsWith('http')) {
-      thumbnail = base ? `${base}${thumbnail.startsWith('/') ? '' : '/'}${thumbnail}` : null;
-    }
-    thumbnail = getDisplayableImageUrl(thumbnail) ?? thumbnail;
+    const base = getMediaBase().replace(/\/+$/, '');
+    const thumbnail = resolveThumbnailUrl(item.thumbnail_url ?? item.thumbnail ?? undefined);
     const thumbnailFailed = failedThumbnails.has(courseId);
     let instructorPhotoUrl = item.instructor_photo_url;
     if (instructorPhotoUrl && !instructorPhotoUrl.startsWith('http')) {
