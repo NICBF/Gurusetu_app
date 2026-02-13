@@ -1,6 +1,5 @@
 /**
- * Learner Assignments modal: ready screen and assignment panel.
- * Adapts JS code to TS/TSX with improved UI.
+ * Learner Assignments modal: ready screen and assignment panel with selectable Q&A.
  */
 import React, { useState } from 'react';
 import {
@@ -10,15 +9,19 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Icon from './Icon';
 import type { Assignment } from '../services/assignmentService';
+import { submitAssignment } from '../services/assignmentService';
 
 export interface AssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   assignment: Assignment | null;
   onStartAssignment?: () => void;
+  onSubmitSuccess?: () => void;
 }
 
 interface AttemptInfo {
@@ -32,8 +35,11 @@ export default function AssignmentModal({
   onClose,
   assignment,
   onStartAssignment,
+  onSubmitSuccess,
 }: AssignmentModalProps) {
   const [assignmentReady, setAssignmentReady] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen || !assignment) return null;
 
@@ -56,13 +62,50 @@ export default function AssignmentModal({
 
   const handleClose = () => {
     setAssignmentReady(false);
+    setAnswers({});
     onClose();
   };
 
+  const handleSelectOption = (questionId: string, optionIndex: number) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }));
+  };
+
+  const handleSubmitAssignment = async () => {
+    const questions = assignment.questions ?? [];
+    const withOptions = questions.filter((q) => {
+      const opts = q.options ?? (q as { choices?: unknown[] }).choices ?? [];
+      return Array.isArray(opts) && opts.length > 0;
+    });
+    const missing = withOptions.filter((q) => answers[String(q.id)] === undefined);
+    if (missing.length > 0) {
+      Alert.alert('Incomplete', 'Please select an answer for each question.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload: Record<string, number> = {};
+      questions.forEach((q, i) => {
+        const id = String(q.id ?? i);
+        if (answers[id] !== undefined) payload[id] = answers[id];
+      });
+      await submitAssignment(String(assignment.id), { answers: payload });
+      Alert.alert('Success', 'Assignment submitted successfully!');
+      onSubmitSuccess?.();
+      handleClose();
+    } catch (e) {
+      const msg = e && typeof e === 'object' && 'response' in e
+        ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Failed to submit'
+        : 'Failed to submit';
+      Alert.alert('Error', msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <Modal visible={isOpen} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal visible={isOpen} transparent animationType="slide" onRequestClose={handleClose} statusBarTranslucent>
       <View style={styles.overlay}>
-        <View style={styles.popup}>
+        <View style={[styles.popup, { minHeight: 200 }]}>
           {!assignmentReady ? (
             /* STATE 1: READY SCREEN */
             <View style={styles.readyScreen}>
@@ -124,25 +167,57 @@ export default function AssignmentModal({
                 {assignment.questions && assignment.questions.length > 0 ? (
                   <View style={styles.questionsContainer}>
                     <Text style={styles.questionsTitle}>Questions ({questionCount})</Text>
-                    {assignment.questions.map((q, idx) => (
-                      <View key={q.id || idx} style={styles.questionItem}>
-                        <Text style={styles.questionText}>
-                          {idx + 1}. {q.text}
-                        </Text>
-                        {q.type === 'multiple_choice' && q.options && (
-                          <View style={styles.optionsContainer}>
-                            {q.options.map((opt, optIdx) => (
-                              <Text key={optIdx} style={styles.optionText}>
-                                • {opt}
-                              </Text>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    ))}
+                    {assignment.questions.map((q, idx) => {
+                      const qId = String(q.id ?? idx);
+                      const qText = (q.text ?? (q as { question_text?: string }).question_text ?? '').toString() || 'Question';
+                      const opts = q.options ?? (q as { choices?: unknown[] }).choices ?? [];
+                      const optionsList = Array.isArray(opts) ? opts : [];
+                      const selectedIndex = answers[qId];
+                      return (
+                        <View key={qId} style={styles.questionItem}>
+                          <Text style={styles.questionText}>
+                            {idx + 1}. {qText}
+                          </Text>
+                          {optionsList.length > 0 ? (
+                            <View style={styles.assignmentOptionsWrap}>
+                              {optionsList.map((opt, optIdx) => {
+                                const optText = typeof opt === 'string' ? opt : String(opt);
+                                const isSelected = selectedIndex === optIdx;
+                                return (
+                                  <TouchableOpacity
+                                    key={optIdx}
+                                    style={[styles.assignmentOptionBtn, isSelected && styles.assignmentOptionBtnSelected]}
+                                    onPress={() => handleSelectOption(qId, optIdx)}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text style={[styles.assignmentOptionText, isSelected && styles.assignmentOptionTextSelected]}>
+                                      {optText}
+                                    </Text>
+                                    <View style={[styles.assignmentOptionRadio, isSelected && styles.assignmentOptionRadioSelected]}>
+                                      {isSelected && <Text style={styles.assignmentOptionCheck}>✓</Text>}
+                                    </View>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                    <TouchableOpacity
+                      style={[styles.submitAssignmentBtn, submitting && styles.submitAssignmentBtnDisabled]}
+                      onPress={handleSubmitAssignment}
+                      disabled={submitting}
+                    >
+                      {submitting ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.submitAssignmentBtnText}>Submit Assignment</Text>
+                      )}
+                    </TouchableOpacity>
                   </View>
                 ) : (
-                  <Text style={styles.bodyText}>Assignment questions would load here...</Text>
+                  <Text style={styles.bodyText}>No questions for this assignment yet, or questions are still loading.</Text>
                 )}
               </ScrollView>
             </View>
@@ -296,5 +371,69 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 4,
+  },
+  assignmentOptionsWrap: {
+    marginTop: 10,
+    gap: 10,
+  },
+  assignmentOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#333',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  assignmentOptionBtnSelected: {
+    borderColor: '#2196F3',
+    backgroundColor: 'rgba(33,150,243,0.15)',
+  },
+  assignmentOptionText: {
+    flex: 1,
+    color: '#ccc',
+    fontSize: 15,
+    marginRight: 12,
+  },
+  assignmentOptionTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  assignmentOptionRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#666',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignmentOptionRadioSelected: {
+    borderColor: '#2196F3',
+    backgroundColor: '#2196F3',
+  },
+  assignmentOptionCheck: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  submitAssignmentBtn: {
+    marginTop: 24,
+    marginBottom: 16,
+    backgroundColor: '#2196F3',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitAssignmentBtnDisabled: {
+    opacity: 0.7,
+  },
+  submitAssignmentBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
