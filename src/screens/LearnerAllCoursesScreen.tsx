@@ -12,6 +12,7 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
+  Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -48,6 +49,7 @@ interface Course {
   average_rating?: number;
   rating?: number;
   reviews_count?: number;
+  is_enrolled?: boolean;
   [key: string]: unknown;
 }
 
@@ -67,12 +69,10 @@ const FILTERS = ['All Verticals', ...VERTICAL_NAMES];
 
 async function fetchLearnerCourses(): Promise<Course[]> {
   try {
-    // Preferred: unified /courses endpoint for all catalog
     const { data } = await api.get('/courses');
     const arr = Array.isArray(data) ? data : (data?.courses ?? data?.items ?? []);
     return Array.isArray(arr) ? arr : [];
   } catch {
-    // Fallback: keep existing learner API so nothing breaks
     try {
       const { data } = await api.get('/my-courses').catch(() => ({ data: [] }));
       const arr = Array.isArray(data) ? data : (data?.courses ?? data?.items ?? []);
@@ -83,11 +83,27 @@ async function fetchLearnerCourses(): Promise<Course[]> {
   }
 }
 
+async function fetchEnrolledCourseIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+  try {
+    const { data } = await api.get('/my-courses');
+    const arr = Array.isArray(data) ? data : (data?.courses ?? data?.items ?? []);
+    (Array.isArray(arr) ? arr : []).forEach((c: Course) => {
+      const id = String(c.course_id ?? c.id ?? '');
+      if (id) ids.add(id);
+    });
+  } catch {
+    // ignore
+  }
+  return ids;
+}
+
 export default function LearnerAllCoursesScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<RootStackParamList, 'LearnerAllCourses'>>();
   const initialVertical = route.params?.vertical;
   const [courses, setCourses] = useState<Course[]>([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -99,8 +115,14 @@ export default function LearnerAllCoursesScreen() {
       setLoading(true);
       setError('');
       try {
-        const list = await fetchLearnerCourses();
-        if (!cancelled) setCourses(list);
+        const [list, enrolled] = await Promise.all([
+          fetchLearnerCourses(),
+          fetchEnrolledCourseIds(),
+        ]);
+        if (!cancelled) {
+          setCourses(list);
+          setEnrolledCourseIds(enrolled);
+        }
       } catch (e) {
         if (!cancelled) setError('Failed to load courses.');
       } finally {
@@ -111,6 +133,20 @@ export default function LearnerAllCoursesScreen() {
       cancelled = true;
     };
   }, []);
+
+  const handleEnroll = async (courseId: string) => {
+    try {
+      await api.post('/enroll', { course_id: courseId });
+      setEnrolledCourseIds((prev) => new Set(prev).add(courseId));
+      Alert.alert('Success', 'Successfully enrolled in course!');
+    } catch (e) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Failed to enroll'
+          : 'Failed to enroll';
+      Alert.alert('Error', msg);
+    }
+  };
 
   const filteredCourses = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -129,8 +165,7 @@ export default function LearnerAllCoursesScreen() {
 
   const resultCount = filteredCourses.length;
 
-  const handleOpenCourse = (course: Course) => {
-    const courseId = String(course.course_id ?? course.id ?? '');
+  const goToCourseDetail = (courseId: string) => {
     if (!courseId) return;
     navigation.navigate('CourseDetail', { courseId });
   };
@@ -227,49 +262,69 @@ export default function LearnerAllCoursesScreen() {
               thumb = base ? `${base}${thumb.startsWith('/') ? '' : '/'}${thumb}` : null;
             }
             thumb = getDisplayableImageUrl(thumb) ?? thumb;
+            const courseId = String(c.course_id ?? c.id ?? '');
+            const isEnrolled = enrolledCourseIds.has(courseId) || Boolean(c.is_enrolled);
             const title = c.title ?? c.name ?? 'Course';
             const instructor = c.instructor_name ?? 'Instructor';
             const rating = c.average_rating ?? c.rating ?? 0;
             const reviews = c.reviews_count ?? 0;
             return (
-              <TouchableOpacity
-                key={String(c.id ?? c.course_id ?? idx)}
-                style={styles.card}
-                onPress={() => handleOpenCourse(c)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.thumbWrap}>
-                  {thumb ? (
-                    <Image source={{ uri: thumb }} style={styles.thumb} />
-                  ) : (
-                    <View style={styles.thumbPlaceholder}>
-                      <Icon name="school" size={24} color={COLORS.textMuted} />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardTitle} numberOfLines={2}>
-                    {title}
-                  </Text>
-                  <View style={styles.instructorRow}>
-                    <Icon name="person" size={14} color={COLORS.textDim} />
-                    <Text style={styles.instructorText}>{instructor}</Text>
+              <View key={String(c.id ?? c.course_id ?? idx)} style={styles.card}>
+                <TouchableOpacity
+                  style={styles.cardMain}
+                  onPress={() => goToCourseDetail(courseId)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.thumbWrap}>
+                    {thumb ? (
+                      <Image source={{ uri: thumb }} style={styles.thumb} />
+                    ) : (
+                      <View style={styles.thumbPlaceholder}>
+                        <Icon name="school" size={24} color={COLORS.textMuted} />
+                      </View>
+                    )}
                   </View>
-                  <View style={styles.cardFooter}>
-                    <View style={styles.ratingRow}>
-                      <Icon name="star" size={14} color={COLORS.yellow} />
-                      <Text style={styles.ratingText}>
-                        {rating ? rating.toFixed(1) : '--'}
-                      </Text>
-                      {reviews ? (
-                        <Text style={styles.ratingCount}>
-                          ({reviews.toLocaleString()})
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle} numberOfLines={2}>
+                      {title}
+                    </Text>
+                    <View style={styles.instructorRow}>
+                      <Icon name="person" size={14} color={COLORS.textDim} />
+                      <Text style={styles.instructorText}>{instructor}</Text>
+                    </View>
+                    <View style={styles.cardFooter}>
+                      <View style={styles.ratingRow}>
+                        <Icon name="star" size={14} color={COLORS.yellow} />
+                        <Text style={styles.ratingText}>
+                          {rating ? rating.toFixed(1) : '--'}
                         </Text>
-                      ) : null}
+                        {reviews ? (
+                          <Text style={styles.ratingCount}>
+                            ({reviews.toLocaleString()})
+                          </Text>
+                        ) : null}
+                      </View>
                     </View>
                   </View>
+                </TouchableOpacity>
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={[styles.cardBtn, isEnrolled && styles.cardBtnEnrolled]}
+                    onPress={() => {
+                      if (isEnrolled) {
+                        goToCourseDetail(courseId);
+                      } else {
+                        handleEnroll(courseId);
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.cardBtnText}>
+                      {isEnrolled ? 'Go to Course' : 'Enroll Now'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
             );
           })}
           {filteredCourses.length === 0 && (
@@ -398,13 +453,38 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    flexDirection: 'row',
-    padding: 12,
     borderRadius: 16,
     backgroundColor: COLORS.surfaceCard,
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 8,
+    overflow: 'hidden',
+  },
+  cardMain: {
+    flexDirection: 'row',
+    padding: 12,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  cardBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardBtnEnrolled: {
+    backgroundColor: COLORS.textDim,
+  },
+  cardBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.white,
   },
   thumbWrap: {
     width: 110,
