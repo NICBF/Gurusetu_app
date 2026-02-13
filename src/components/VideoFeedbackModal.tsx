@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Icon from './Icon';
 import { submitVideoFeedback, type VideoFeedbackRequest } from '../services/videoFeedbackService';
@@ -98,6 +99,7 @@ export default function VideoFeedbackModal({
       await submitVideoFeedback(body);
       onSubmit?.(ratings);
       onClose();
+      Alert.alert('Success', 'Feedback submitted.');
     } catch (e: unknown) {
       const msg =
         e && typeof e === 'object' && 'message' in e
