@@ -4,7 +4,7 @@
  * Sections: hero, verticals, top trending courses, why GuruSetu, testimonials, FAQ, bottom nav.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
@@ -101,7 +101,41 @@ export default function LearnerHomeScreen() {
   const { theme } = useTheme();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [trending, setTrending] = useState<CourseSummary[]>([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
   const c = theme.colors;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get('/my-courses');
+        const arr = Array.isArray(data) ? data : (data?.courses ?? data?.items ?? []);
+        const ids = new Set<string>();
+        (Array.isArray(arr) ? arr : []).forEach((item: { course_id?: string; id?: string }) => {
+          const id = String(item.course_id ?? item.id ?? '');
+          if (id) ids.add(id);
+        });
+        if (!cancelled) setEnrolledCourseIds(ids);
+      } catch {
+        if (!cancelled) setEnrolledCourseIds(new Set());
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleEnroll = async (courseId: string) => {
+    try {
+      await api.post('/enroll', { course_id: courseId });
+      setEnrolledCourseIds((prev) => new Set(prev).add(courseId));
+      Alert.alert('Success', 'Successfully enrolled in course!');
+    } catch (e) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Failed to enroll'
+          : 'Failed to enroll';
+      Alert.alert('Error', msg);
+    }
+  };
 
   const goToCourses = () => navigation.navigate('LearnerAllCourses');
   const goToCoursesWithVertical = (verticalName: string) =>
@@ -221,26 +255,26 @@ export default function LearnerHomeScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.coursesList}>
-              {trending.map((c) => {
-                const id = String(c.course_id ?? c.id ?? '');
+              {trending.map((course) => {
+                const id = String(course.course_id ?? course.id ?? '');
                 if (!id) return null;
-                const title = c.title ?? c.name ?? 'Course';
-                const instructor = c.instructor_name ?? 'Instructor';
-                const rating = c.average_rating ?? c.rating ?? 0;
-                let thumb = c.thumbnail_url ?? '';
+                const title = course.title ?? course.name ?? 'Course';
+                const instructor = course.instructor_name ?? 'Instructor';
+                const rating = course.average_rating ?? course.rating ?? 0;
+                let thumb = course.thumbnail_url ?? '';
                 if (thumb && !thumb.startsWith('http')) {
                   const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
                   thumb = base ? `${base}${thumb.startsWith('/') ? '' : '/'}${thumb}` : thumb;
                 }
                 thumb = getDisplayableImageUrl(thumb) ?? thumb;
                 return (
-                  <View key={id} style={[styles.courseCard, { backgroundColor: c.surfaceCard }]}>
+                  <View key={id} style={[styles.courseCard, { backgroundColor: c.surfaceCard, borderColor: c.border }]}>
                     <View style={styles.courseImageWrap}>
                       {thumb ? (
                         <Image source={{ uri: thumb }} style={styles.courseImage} />
                       ) : (
-                        <View style={styles.courseImageFallback}>
-                          <Icon name="school" size={26} color={COLORS.white80} />
+                        <View style={[styles.courseImageFallback, { backgroundColor: c.surface }]}>
+                          <Icon name="school" size={26} color={c.textMuted} />
                         </View>
                       )}
                       <View style={[styles.badge, { backgroundColor: COLORS.primary }]}>
@@ -260,27 +294,35 @@ export default function LearnerHomeScreen() {
                       <Text style={[styles.courseTitle, { color: c.text }]} numberOfLines={2}>
                         {title}
                       </Text>
-                      <View style={styles.instructorRow}>
-                        <View style={styles.instructorAvatarFallback}>
+                      <View style={[styles.instructorRow, { backgroundColor: c.surface, borderColor: c.border }]}>
+                        <View style={[styles.instructorAvatarFallback, { backgroundColor: c.surfaceCard }]}>
                           <Icon name="person" size={20} color={c.primary} />
                         </View>
-                        <View>
-                          <Text style={[styles.instructorLabel, { color: c.textDim }]}>Instructor</Text>
-                          <Text style={[styles.instructorName, { color: c.text }]}>{instructor}</Text>
+                        <View style={styles.instructorTextWrap}>
+                          <Text style={[styles.instructorLabel, { color: c.textMuted }]}>Instructor</Text>
+                          <Text style={[styles.instructorName, { color: c.text }]} numberOfLines={1}>{instructor}</Text>
                         </View>
                       </View>
                       <Text style={[styles.courseDesc, { color: c.textMuted }]} numberOfLines={3}>
-                        {c.students_count
-                          ? `${c.students_count.toLocaleString()} learners enrolled`
+                        {course.students_count
+                          ? `${course.students_count.toLocaleString()} learners enrolled`
                           : 'Join faculty across India learning with GuruSetu.'}
                       </Text>
                       <TouchableOpacity
                         testID={`course-card-${id}`}
-                        style={styles.enrollBtn}
-                        onPress={() => goToCourseDetail(id)}
+                        style={[styles.enrollBtn, enrolledCourseIds.has(id) && styles.enrollBtnEnrolled]}
+                        onPress={() => {
+                          if (enrolledCourseIds.has(id)) {
+                            goToCourseDetail(id);
+                          } else {
+                            handleEnroll(id);
+                          }
+                        }}
                         activeOpacity={0.9}
                       >
-                        <Text style={styles.enrollBtnText}>View Course</Text>
+                        <Text style={styles.enrollBtnText}>
+                          {enrolledCourseIds.has(id) ? 'Go to Course' : 'Enroll Now'}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -291,7 +333,7 @@ export default function LearnerHomeScreen() {
         )}
 
         {/* Why GuruSetu */}
-        <View style={[styles.section, styles.whySection]}>
+        <View style={[styles.section, styles.whySection, { backgroundColor: c.surface }]}>
           <Text style={[styles.sectionTitle, { color: c.text }]}>Why GuruSetu?</Text>
           <View style={styles.whyGrid}>
             {WHY_ITEMS.map((item, i) => (
@@ -519,10 +561,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    backgroundColor: COLORS.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
     marginBottom: 16,
   },
   instructorAvatar: { width: 40, height: 40, borderRadius: 20 },
@@ -530,18 +570,21 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.surfaceCard,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  instructorLabel: { fontSize: 10, color: COLORS.textDim, fontWeight: '700', marginBottom: 2 },
-  instructorName: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  instructorTextWrap: { flex: 1, minWidth: 0 },
+  instructorLabel: { fontSize: 10, fontWeight: '700', marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  instructorName: { fontSize: 14, fontWeight: '700' },
   courseDesc: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24, lineHeight: 20 },
   enrollBtn: {
     backgroundColor: COLORS.primary,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  enrollBtnEnrolled: {
+    backgroundColor: COLORS.textDim,
   },
   enrollBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
   whySection: {
