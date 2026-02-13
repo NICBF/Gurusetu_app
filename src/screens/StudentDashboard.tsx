@@ -13,6 +13,7 @@ import {
   TextInput,
   ActivityIndicator,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigation } from '@react-navigation/native';
@@ -107,6 +108,7 @@ export default function StudentDashboard() {
   const tc = theme.colors;
   const [data, setData] = useState<DashboardData>({});
   const [allCourses, setAllCourses] = useState<CourseSummary[]>([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -133,6 +135,10 @@ export default function StudentDashboard() {
     try {
       const d = await getStudentDashboard();
       setData(d);
+      const recent = (d.recent_courses || []) as EnrolledCourse[];
+      setEnrolledCourseIds(
+        new Set(recent.map((c) => String(c.id ?? c.course_id ?? '')).filter(Boolean))
+      );
     } catch (e) {
       console.error('[StudentDashboard]', e);
     } finally {
@@ -140,17 +146,28 @@ export default function StudentDashboard() {
     }
   };
 
+  const handleEnroll = async (courseId: string) => {
+    try {
+      await api.post('/enroll', { course_id: courseId });
+      setEnrolledCourseIds((prev) => new Set(prev).add(courseId));
+      Alert.alert('Success', 'Successfully enrolled in course!');
+    } catch (e) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail ||
+            'Failed to enroll'
+          : 'Failed to enroll';
+      Alert.alert('Error', msg);
+    }
+  };
+
   const userName = data.user?.name || data.user?.email || 'Learner';
   const recentCourses = (data.recent_courses || []) as EnrolledCourse[];
   const firstCourse = recentCourses[0];
   const progressPresets = [45, 82, 15, 60, 90, 30];
-  const enrolledForCards: Array<EnrolledCourse & { progress: number }> = recentCourses.length
-    ? recentCourses.slice(0, 6).map((c, i) => ({ ...c, progress: c.progress ?? progressPresets[i] ?? 50 }))
-    : [
-        { id: '1', title: 'Product Design: From Zero to Hero', thumbnail_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlvV03iGdDySWLHx8waB5qRobJU4mL8mVD5XlesavhjuYvy2IU-GxETaqhl5VOaSXIiVFptWrvy6xnauAgywcRwkmbkbt4yUy37XatjvShcX_grTJnzfN1ptgFPuhLangDeL9Ie0zBdvAuxr9RsddxRTshYROIO4N1nRLip6bF8la6V45shQlTMlgGSADLigc-o53eii3qkwgQlqphUn_UnqYPYnmaTEpNEDuhH4knlvIiIGVqurOf-jXa1o7mzeehKJFq3sPJqsY', progress: 45 },
-        { id: '2', title: 'Mastering Modern Typography', thumbnail_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD5FZyAJQY9OWR-3U6HbLz6zJyDI27WkjY-p_gTc-EeQSRCB6sv4Ub0JLQMAh7M1iUWkvfc2BGzJpUg7BH7XyhsWPkEEfiEsm_-XzCz3btA3UV3Q4lc4d53Bv78T53FJWyhxV65chSKKhQhgGX6TwEGWQxa5FO6ehaj4EtQA3qBRFDDV61vJTl3aDO9Eq380dbPV345-hZZRHPmZenZWzT72dsb68DwzMrp92WXgE5Hs7NdrZbZ6Q3xoSTON_JMk0LWcvaK6IsSdZo', progress: 82 },
-        { id: '3', title: 'Full-stack React Development', thumbnail_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuADeDn48LPQCqpRxuzHEY5bh5MdlGKWpRDWmWN-fLW_Q8x-hDFGIsUtsNhB5j4B5XJQfpHKMYddfXN_KtMnoBF5OUFZRY2E6cy7ZNZXZA47MgXpLuG80pk1CaqWSXlAkmNamrTMcmiddo5mMFbvAm0mjrNMNZlEezjRpgRHxIua2FDY4JcTeuwNVWnVL5D5uGemG5IO9UGkLRvhjVFtT3v-1qHxMGrp2F3RpWGsvKPqCGDTOLzGAraNhZwgYZ3JYJSdAxmNj8SxVrE', progress: 15 },
-      ];
+  const enrolledForCards: Array<EnrolledCourse & { progress: number }> = recentCourses
+    .slice(0, 6)
+    .map((c, i) => ({ ...c, progress: c.progress ?? progressPresets[i] ?? 50 }));
 
   const goToLearnerAllCourses = () => navigation.navigate('LearnerAllCourses');
   const goToCourseDetail = (courseId: string) => navigation.navigate('CourseDetail', { courseId });
@@ -169,10 +186,11 @@ export default function StudentDashboard() {
     );
   }
 
-  const continueTitle = firstCourse?.title ?? 'Advanced Figma Masterclass';
-  const continueSubtitle = firstCourse ? (firstCourse.title?.split(' ').slice(0, 2).join(' ') || 'Course') : 'UI/UX Design';
-  const continueCourseId = firstCourse?.id ?? firstCourse?.course_id ?? 'V8';
-  const continueProgress = firstCourse?.progress ?? 74;
+  const continueTitle = firstCourse?.title ?? firstCourse?.name;
+  const continueSubtitle = firstCourse ? (firstCourse.title ?? firstCourse.name ?? '')?.split(' ').slice(0, 2).join(' ') || 'Course' : '';
+  const continueCourseId = firstCourse?.id ?? firstCourse?.course_id;
+  const continueProgress = firstCourse?.progress ?? 0;
+  const hasContinueLearning = Boolean(firstCourse && continueCourseId);
 
   return (
     <View style={[styles.page, { backgroundColor: tc.background }]}>
@@ -208,50 +226,52 @@ export default function StudentDashboard() {
           />
         </View>
 
-        {/* Continue Learning */}
-        <View style={styles.section}>
-          <View style={styles.sectionRow}>
-            <Text style={[styles.sectionTitle, { color: tc.text }]}>Continue Learning</Text>
-            <TouchableOpacity onPress={goToLearnerAllCourses}>
-              <Text style={[styles.linkText, { color: tc.primary }]}>View All</Text>
+        {/* Continue Learning – only when user has enrolled courses */}
+        {hasContinueLearning && (
+          <View style={styles.section}>
+            <View style={styles.sectionRow}>
+              <Text style={[styles.sectionTitle, { color: tc.text }]}>Continue Learning</Text>
+              <TouchableOpacity onPress={goToLearnerAllCourses}>
+                <Text style={[styles.linkText, { color: tc.primary }]}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.continueCard}
+              onPress={() => goToCourseDetail(String(continueCourseId))}
+              activeOpacity={0.9}
+            >
+              <View style={styles.continueBlob1} />
+              <View style={styles.continueBlob2} />
+              <View style={styles.continueContent}>
+                <View style={styles.continueTop}>
+                  <View>
+                    <View style={styles.continueTag}>
+                      <Text style={styles.continueTagText}>{continueSubtitle}</Text>
+                    </View>
+                    <Text style={styles.continueTitle} numberOfLines={2}>{continueTitle}</Text>
+                  </View>
+                  <View style={styles.playBtn}>
+                    <Icon name="play_arrow" size={24} color={tc.white} />
+                  </View>
+                </View>
+                <View style={styles.progressWrap}>
+                  <View style={styles.progressLabels}>
+                    <Text style={[styles.progressLabel, { color: tc.textMuted }]}>Progress</Text>
+                    <Text style={[styles.progressPct, { color: tc.text }]}>{continueProgress}%</Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${continueProgress}%` }]} />
+                  </View>
+                  <Text style={[styles.progressSub, { color: tc.textMuted }]}>
+                    {Math.round((continueProgress / 100) * 16)} of 16 lessons completed
+                  </Text>
+                </View>
+              </View>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.continueCard}
-            onPress={() => goToCourseDetail(continueCourseId)}
-            activeOpacity={0.9}
-          >
-            <View style={styles.continueBlob1} />
-            <View style={styles.continueBlob2} />
-            <View style={styles.continueContent}>
-              <View style={styles.continueTop}>
-                <View>
-                  <View style={styles.continueTag}>
-                    <Text style={styles.continueTagText}>{continueSubtitle}</Text>
-                  </View>
-                  <Text style={styles.continueTitle} numberOfLines={2}>{continueTitle}</Text>
-                </View>
-                <View style={styles.playBtn}>
-                  <Icon name="play_arrow" size={24} color={tc.white} />
-                </View>
-              </View>
-              <View style={styles.progressWrap}>
-                <View style={styles.progressLabels}>
-                  <Text style={[styles.progressLabel, { color: tc.textMuted }]}>Progress</Text>
-                  <Text style={[styles.progressPct, { color: tc.text }]}>{continueProgress}%</Text>
-                </View>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${continueProgress}%` }]} />
-                </View>
-                <Text style={[styles.progressSub, { color: tc.textMuted }]}>
-                  {Math.round((continueProgress / 100) * 16)} of 16 lessons completed
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
+        )}
 
-        {/* Enrolled Courses */}
+        {/* Enrolled Courses – only real data from API; empty state when none */}
         <View style={styles.section}>
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { color: tc.text }]}>Enrolled Courses</Text>
@@ -259,39 +279,49 @@ export default function StudentDashboard() {
               <Text style={[styles.linkText, { color: tc.primary }]}>View All</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.enrolledScroll}>
-            {enrolledForCards.map((card, idx) => {
-              const thumbUri = resolveThumbnail(card.thumbnail_url);
-              return (
-              <TouchableOpacity
-                key={card.id ?? card.course_id ?? idx}
-                style={[styles.enrolledCard, { backgroundColor: tc.surfaceCard }]}
-                onPress={() => goToCourseDetail(String(card.id ?? card.course_id ?? ''))}
-                activeOpacity={0.9}
-              >
-                {thumbUri ? (
-                  <Image source={{ uri: thumbUri }} style={styles.enrolledImage} />
-                ) : (
-                  <View style={[styles.enrolledImage, styles.enrolledImageFallback, { backgroundColor: tc.surface }]}>
-                    <Icon name="school" size={32} color={tc.textDim} />
-                  </View>
-                )}
-                <Text style={[styles.enrolledTitle, { color: tc.text }]} numberOfLines={1}>{card.title ?? card.name ?? 'Course'}</Text>
-                <View style={styles.enrolledProgressTrack}>
-                  <View
-                    style={[
-                      styles.enrolledProgressFill,
-                      { width: `${card.progress ?? 0}%` },
-                      (card.progress ?? 0) >= 80 && { backgroundColor: COLORS.emerald },
-                      (card.progress ?? 0) < 30 && (card.progress ?? 0) > 0 && { backgroundColor: COLORS.orange },
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.enrolledPct, { color: tc.textMuted }]}>{card.progress ?? 0}% Complete</Text>
+          {enrolledForCards.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.enrolledScroll}>
+              {enrolledForCards.map((card, idx) => {
+                const thumbUri = resolveThumbnail(card.thumbnail_url);
+                return (
+                  <TouchableOpacity
+                    key={card.id ?? card.course_id ?? idx}
+                    style={[styles.enrolledCard, { backgroundColor: tc.surfaceCard }]}
+                    onPress={() => goToCourseDetail(String(card.id ?? card.course_id ?? ''))}
+                    activeOpacity={0.9}
+                  >
+                    {thumbUri ? (
+                      <Image source={{ uri: thumbUri }} style={styles.enrolledImage} />
+                    ) : (
+                      <View style={[styles.enrolledImage, styles.enrolledImageFallback, { backgroundColor: tc.surface }]}>
+                        <Icon name="school" size={32} color={tc.textDim} />
+                      </View>
+                    )}
+                    <Text style={[styles.enrolledTitle, { color: tc.text }]} numberOfLines={1}>{card.title ?? card.name ?? 'Course'}</Text>
+                    <View style={styles.enrolledProgressTrack}>
+                      <View
+                        style={[
+                          styles.enrolledProgressFill,
+                          { width: `${card.progress ?? 0}%` },
+                          (card.progress ?? 0) >= 80 && { backgroundColor: COLORS.emerald },
+                          (card.progress ?? 0) < 30 && (card.progress ?? 0) > 0 && { backgroundColor: COLORS.orange },
+                        ]}
+                      />
+                    </View>
+                    <Text style={[styles.enrolledPct, { color: tc.textMuted }]}>{card.progress ?? 0}% Complete</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View style={[styles.emptyEnrolledWrap, { backgroundColor: tc.surfaceCard }]}>
+              <Icon name="school" size={40} color={tc.textDim} />
+              <Text style={[styles.emptyEnrolledText, { color: tc.textMuted }]}>No enrolled courses yet</Text>
+              <TouchableOpacity style={[styles.emptyEnrolledBtn, { backgroundColor: tc.primary }]} onPress={goToLearnerAllCourses}>
+                <Text style={styles.emptyEnrolledBtnText}>Browse courses</Text>
               </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* Verticals – same names + emojis as home */}
@@ -325,35 +355,49 @@ export default function StudentDashboard() {
           <View style={styles.allCoursesList}>
             {allCourses.map((course) => {
               const id = String(course.course_id ?? course.id ?? '');
+              const isEnrolled = enrolledCourseIds.has(id);
               const thumbUri = resolveThumbnail(course.thumbnail_url);
               return (
-              <TouchableOpacity
-                key={id}
-                style={[styles.allCourseRow, { backgroundColor: tc.surfaceCard }]}
-                onPress={() => id && goToCourseDetail(id)}
-                activeOpacity={0.8}
-              >
-                {thumbUri ? (
-                  <Image source={{ uri: thumbUri }} style={styles.allCourseThumb} />
-                ) : (
-                  <View style={[styles.allCourseThumb, styles.enrolledImageFallback, { backgroundColor: tc.surface }]}>
-                    <Icon name="school" size={24} color={tc.textDim} />
-                  </View>
-                )}
-                <View style={styles.allCourseBody}>
-                  <Text style={[styles.allCourseTitle, { color: tc.text }]} numberOfLines={2}>{course.title ?? course.name ?? 'Course'}</Text>
-                  <View style={styles.instructorRow}>
-                    <Icon name="person" size={14} color={tc.textDim} />
-                    <Text style={[styles.instructorName, { color: tc.textDim }]}>{course.instructor_name ?? 'Instructor'}</Text>
-                  </View>
-                  <View style={styles.allCourseFooter}>
-                    <View style={styles.ratingRow}>
-                      <Icon name="star" size={14} color={COLORS.yellow} />
-                      <Text style={[styles.ratingText, { color: tc.text }]}>{course.average_rating != null ? course.average_rating.toFixed(1) : '--'}</Text>
+                <View key={id} style={[styles.allCourseRow, { backgroundColor: tc.surfaceCard }]}>
+                  <TouchableOpacity
+                    style={styles.allCourseRowTouchable}
+                    onPress={() => id && goToCourseDetail(id)}
+                    activeOpacity={0.8}
+                  >
+                    {thumbUri ? (
+                      <Image source={{ uri: thumbUri }} style={styles.allCourseThumb} />
+                    ) : (
+                      <View style={[styles.allCourseThumb, styles.enrolledImageFallback, { backgroundColor: tc.surface }]}>
+                        <Icon name="school" size={24} color={tc.textDim} />
+                      </View>
+                    )}
+                    <View style={styles.allCourseBody}>
+                      <Text style={[styles.allCourseTitle, { color: tc.text }]} numberOfLines={2}>{course.title ?? course.name ?? 'Course'}</Text>
+                      <View style={styles.instructorRow}>
+                        <Icon name="person" size={14} color={tc.textDim} />
+                        <Text style={[styles.instructorName, { color: tc.textDim }]}>{course.instructor_name ?? 'Instructor'}</Text>
+                      </View>
+                      <View style={styles.allCourseFooter}>
+                        <View style={styles.ratingRow}>
+                          <Icon name="star" size={14} color={COLORS.yellow} />
+                          <Text style={[styles.ratingText, { color: tc.text }]}>{course.average_rating != null ? course.average_rating.toFixed(1) : '--'}</Text>
+                        </View>
+                      </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.allCourseBtn, isEnrolled && styles.allCourseBtnEnrolled]}
+                    onPress={() => {
+                      if (isEnrolled) goToCourseDetail(id);
+                      else handleEnroll(id);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.allCourseBtnText}>
+                      {isEnrolled ? 'Go to Course' : 'Enroll Now'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
               );
             })}
           </View>
@@ -494,6 +538,16 @@ const styles = StyleSheet.create({
   progressSub: { fontSize: 10, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
   enrolledScroll: { paddingRight: 20, gap: 16 },
   enrolledCard: { width: 224, marginRight: 16 },
+  emptyEnrolledWrap: {
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 12,
+  },
+  emptyEnrolledText: { fontSize: 14, textAlign: 'center' },
+  emptyEnrolledBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  emptyEnrolledBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.white },
   enrolledImage: { width: '100%', aspectRatio: 16 / 9, borderRadius: 12, backgroundColor: COLORS.surfaceCard },
   enrolledImageFallback: { alignItems: 'center', justifyContent: 'center' },
   enrolledTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text, marginTop: 12, marginBottom: 8 },
@@ -515,15 +569,38 @@ const styles = StyleSheet.create({
   allCoursesList: { gap: 16 },
   allCourseRow: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'center',
+    gap: 12,
     padding: 12,
     backgroundColor: COLORS.surfaceCard,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  allCourseRowTouchable: {
+    flexDirection: 'row',
+    flex: 1,
+    gap: 16,
+    minWidth: 0,
+  },
+  allCourseBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  allCourseBtnEnrolled: {
+    backgroundColor: COLORS.textDim,
+  },
+  allCourseBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.white,
+  },
   allCourseThumb: { width: 96, height: 96, borderRadius: 8 },
-  allCourseBody: { flex: 1, justifyContent: 'space-between' },
+  allCourseBody: { flex: 1, justifyContent: 'space-between', minWidth: 0 },
   allCourseTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text, lineHeight: 20 },
   instructorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   instructorName: { fontSize: 11, color: COLORS.textDim },
