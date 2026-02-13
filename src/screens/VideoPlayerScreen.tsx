@@ -41,6 +41,8 @@ export interface CourseVideoPlayerProps {
   onEnd?: () => void;
   /** When true, show "Rate this session" below the player */
   showFeedbackButton?: boolean;
+  /** When true, show "Feedback submitted" (read-only) instead of the rate button */
+  feedbackSubmitted?: boolean;
   onFeedbackPress?: () => void;
 }
 
@@ -55,6 +57,7 @@ export const CourseVideoPlayer: React.FC<CourseVideoPlayerProps> = ({
   showHeader = true,
   onEnd,
   showFeedbackButton,
+  feedbackSubmitted,
   onFeedbackPress,
 }) => {
   const navigation = useNavigation<Nav>();
@@ -218,15 +221,22 @@ export const CourseVideoPlayer: React.FC<CourseVideoPlayerProps> = ({
         </View>
       )}
 
-      {showFeedbackButton && (
-        <TouchableOpacity
-          style={[styles.feedbackButton, { backgroundColor: 'rgba(76, 175, 80, 0.9)' }]}
-          onPress={onFeedbackPress}
-          activeOpacity={0.8}
-        >
-          <Icon name="grading" size={20} color="#fff" />
-          <Text style={styles.feedbackButtonText}>Rate this session</Text>
-        </TouchableOpacity>
+      {(showFeedbackButton || feedbackSubmitted) && (
+        feedbackSubmitted ? (
+          <View style={[styles.feedbackSubmittedRow, { backgroundColor: c.surfaceCard }]}>
+            <Icon name="verified_user" size={20} color="#4CAF50" />
+            <Text style={[styles.feedbackSubmittedText, { color: c.text }]}>Feedback submitted</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.feedbackButton, { backgroundColor: 'rgba(76, 175, 80, 0.9)' }]}
+            onPress={onFeedbackPress}
+            activeOpacity={0.8}
+          >
+            <Icon name="grading" size={20} color="#fff" />
+            <Text style={styles.feedbackButtonText}>Rate this session</Text>
+          </TouchableOpacity>
+        )
       )}
     </View>
   );
@@ -239,6 +249,7 @@ function VideoPlayerScreen() {
   const { videoUri, title, courseId, lectureId, isIntro } = route.params;
   const [showFeedback, setShowFeedback] = React.useState(false);
   const [hasFeedback, setHasFeedback] = React.useState<boolean | null>(null);
+  const feedbackSubmittedThisSession = React.useRef(false);
 
   React.useEffect(() => {
     if (!courseId) return;
@@ -251,7 +262,7 @@ function VideoPlayerScreen() {
         }
       } catch (e) {
         console.error('[VideoPlayer] Error checking feedback:', e);
-        if (!cancelled) {
+        if (!cancelled && !feedbackSubmittedThisSession.current) {
           setHasFeedback(false);
         }
       }
@@ -260,9 +271,10 @@ function VideoPlayerScreen() {
   }, [courseId, lectureId, isIntro]);
 
   const handleVideoEnd = async () => {
+    if (feedbackSubmittedThisSession.current) return;
     if (hasFeedback === null) {
       setTimeout(() => {
-        if (!hasFeedback) setShowFeedback(true);
+        if (!feedbackSubmittedThisSession.current) setShowFeedback(true);
       }, 500);
     } else if (!hasFeedback) {
       setShowFeedback(true);
@@ -270,7 +282,7 @@ function VideoPlayerScreen() {
   };
 
   const handleFeedbackPress = () => {
-    if (!hasFeedback) {
+    if (!hasFeedback && !feedbackSubmittedThisSession.current) {
       setShowFeedback(true);
     }
   };
@@ -283,7 +295,8 @@ function VideoPlayerScreen() {
     );
   }
 
-  const canShowFeedback = !!courseId && !hasFeedback;
+  const canShowFeedback = !!courseId && hasFeedback !== true && !feedbackSubmittedThisSession.current;
+  const showFeedbackSubmitted = !!courseId && hasFeedback === true;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.background }]}>
@@ -293,17 +306,19 @@ function VideoPlayerScreen() {
         showHeader={true}
         onEnd={canShowFeedback ? handleVideoEnd : undefined}
         showFeedbackButton={canShowFeedback}
+        feedbackSubmitted={showFeedbackSubmitted}
         onFeedbackPress={canShowFeedback ? handleFeedbackPress : undefined}
       />
       {courseId && (
         <VideoFeedbackModal
-          isOpen={showFeedback && !hasFeedback}
+          isOpen={showFeedback && hasFeedback !== true && !feedbackSubmittedThisSession.current}
           onClose={() => setShowFeedback(false)}
           lectureTitle={title || 'Session'}
           courseId={courseId}
           lectureId={lectureId}
           isIntro={isIntro}
           onSubmit={() => {
+            feedbackSubmittedThisSession.current = true;
             setHasFeedback(true);
             setShowFeedback(false);
           }}
@@ -493,5 +508,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  feedbackSubmittedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.5)',
+  },
+  feedbackSubmittedText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
   },
 });
