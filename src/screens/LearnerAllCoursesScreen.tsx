@@ -19,8 +19,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import api from '../services/api';
-import { API_BASE } from '../config';
-import { getDisplayableImageUrl } from '../utils/mediaUrl';
+import { resolveThumbnailUrl } from '../utils/mediaUrl';
 import Icon from '../components/Icon';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -187,8 +186,6 @@ export default function LearnerAllCoursesScreen() {
     );
   }
 
-  const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
-
   return (
     <View style={styles.page}>
       <ScrollView
@@ -257,11 +254,7 @@ export default function LearnerAllCoursesScreen() {
         {/* Course cards */}
         <View style={styles.list}>
           {filteredCourses.map((c, idx) => {
-            let thumb = c.thumbnail_url ?? c.thumbnail;
-            if (thumb && !thumb.startsWith('http')) {
-              thumb = base ? `${base}${thumb.startsWith('/') ? '' : '/'}${thumb}` : null;
-            }
-            thumb = getDisplayableImageUrl(thumb) ?? thumb;
+            const thumb = resolveThumbnailUrl(c.thumbnail_url ?? c.thumbnail ?? undefined);
             const courseId = String(c.course_id ?? c.id ?? '');
             const isEnrolled = enrolledCourseIds.has(courseId) || Boolean(c.is_enrolled);
             const title = c.title ?? c.name ?? 'Course';
