@@ -21,8 +21,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { getStudentDashboard, type DashboardData } from '../services/dashboardService';
 import api from '../services/api';
-import { API_BASE } from '../config';
-import { getDisplayableImageUrl } from '../utils/mediaUrl';
+import { resolveThumbnailUrl } from '../utils/mediaUrl';
 import Icon from '../components/Icon';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -91,15 +90,6 @@ function getGreeting(): string {
   return 'Good Evening,';
 }
 
-function resolveThumbnail(thumbnailUrl: string | undefined): string | null {
-  if (!thumbnailUrl || !thumbnailUrl.trim()) return null;
-  let url = thumbnailUrl.trim();
-  if (!url.startsWith('http')) {
-    const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
-    url = base ? `${base}${url.startsWith('/') ? '' : '/'}${url}` : url;
-  }
-  return getDisplayableImageUrl(url) ?? url;
-}
 
 export default function StudentDashboard() {
   const { logout } = useAuth();
@@ -282,7 +272,7 @@ export default function StudentDashboard() {
           {enrolledForCards.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.enrolledScroll}>
               {enrolledForCards.map((card, idx) => {
-                const thumbUri = resolveThumbnail(card.thumbnail_url);
+                const thumbUri = resolveThumbnailUrl(card.thumbnail_url);
                 return (
                   <TouchableOpacity
                     key={card.id ?? card.course_id ?? idx}
@@ -356,7 +346,7 @@ export default function StudentDashboard() {
             {allCourses.map((course) => {
               const id = String(course.course_id ?? course.id ?? '');
               const isEnrolled = enrolledCourseIds.has(id);
-              const thumbUri = resolveThumbnail(course.thumbnail_url);
+              const thumbUri = resolveThumbnailUrl(course.thumbnail_url);
               return (
                 <View key={id} style={[styles.allCourseRow, { backgroundColor: tc.surfaceCard }]}>
                   <TouchableOpacity
