@@ -21,7 +21,7 @@ import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import api from '../services/api';
 import { getVideoPlayableUrl } from '../utils/videoUrl';
-import { getDisplayableImageUrl } from '../utils/mediaUrl';
+import { getDisplayableImageUrl, resolveThumbnailUrl } from '../utils/mediaUrl';
 import { API_BASE } from '../config';
 import Icon from '../components/Icon';
 import { CourseVideoPlayer } from './VideoPlayerScreen';
@@ -284,11 +284,7 @@ export default function CourseDetailScreen() {
   const introVideoUri = course.intro_video_path
     ? getVideoPlayableUrl(course.intro_video_path)
     : null;
-  let thumbnail = course.thumbnail_url;
-  if (thumbnail && !thumbnail.startsWith('http')) {
-    thumbnail = base ? `${base}${thumbnail.startsWith('/') ? '' : '/'}${thumbnail}` : null;
-  }
-  thumbnail = getDisplayableImageUrl(thumbnail) ?? thumbnail;
+  const thumbnail = resolveThumbnailUrl(course.thumbnail_url);
   let instructorPhotoUrl = course.instructor_photo_url;
   if (instructorPhotoUrl && !instructorPhotoUrl.startsWith('http')) {
     instructorPhotoUrl = base ? `${base}${instructorPhotoUrl.startsWith('/') ? '' : '/'}${instructorPhotoUrl}` : undefined;
