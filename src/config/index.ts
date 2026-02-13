@@ -1,1 +1,1 @@
-export { API_BASE, isDev } from './env';
+export { API_BASE, getMediaBase, isDev } from './env';
