@@ -10,8 +10,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import Icon from '../components/Icon';
 import api from '../services/api';
-import { API_BASE } from '../config';
-import { getDisplayableImageUrl } from '../utils/mediaUrl';
+import { resolveThumbnailUrl } from '../utils/mediaUrl';
 import { useTheme } from '../theme/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -261,12 +260,7 @@ export default function LearnerHomeScreen() {
                 const title = course.title ?? course.name ?? 'Course';
                 const instructor = course.instructor_name ?? 'Instructor';
                 const rating = course.average_rating ?? course.rating ?? 0;
-                let thumb = course.thumbnail_url ?? '';
-                if (thumb && !thumb.startsWith('http')) {
-                  const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
-                  thumb = base ? `${base}${thumb.startsWith('/') ? '' : '/'}${thumb}` : thumb;
-                }
-                thumb = getDisplayableImageUrl(thumb) ?? thumb;
+                const thumb = resolveThumbnailUrl(course.thumbnail_url ?? '');
                 return (
                   <View key={id} style={[styles.courseCard, { backgroundColor: c.surfaceCard, borderColor: c.border }]}>
                     <View style={styles.courseImageWrap}>
