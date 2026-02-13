@@ -2,7 +2,7 @@
  * Course detail with full info + video player. Shows intro video if no lectures exist.
  * Adapted from HTML design: dark theme, all course details, embedded player.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -30,7 +30,8 @@ import { checkVideoFeedback } from '../services/videoFeedbackService';
 import QuizModal from '../components/QuizModal';
 import { getCourseQuizzes, getQuiz, checkQuizCompletion, type Quiz } from '../services/quizService';
 import AssignmentModal from '../components/AssignmentModal';
-import { getCourseAssignments, type Assignment } from '../services/assignmentService';
+import { getCourseAssignments, getAssignment, type Assignment } from '../services/assignmentService';
+import { useTheme } from '../theme/ThemeContext';
 
 const COLORS = {
   bg: '#0a0e27',
@@ -66,6 +67,8 @@ interface CourseData {
 export default function CourseDetailScreen() {
   const route = useRoute<Route>();
   const navigation = useNavigation<Nav>();
+  const { theme } = useTheme();
+  const c = theme.colors;
   const { courseId } = route.params;
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,6 +79,7 @@ export default function CourseDetailScreen() {
   const [instructorPhotoError, setInstructorPhotoError] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [hasFeedback, setHasFeedback] = useState<boolean | null>(null);
+  const feedbackSubmittedThisSession = useRef(false);
   const [checkingFeedback, setCheckingFeedback] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -114,30 +118,24 @@ export default function CourseDetailScreen() {
     return () => { cancelled = true; };
   }, [courseId]);
 
-  // Check if feedback already exists for intro video
+  // Check if feedback already exists for intro video (run for every course so "Rate this session" / "Feedback submitted" shows correctly)
   useEffect(() => {
-    if (!courseId || !course?.intro_video_path) return;
+    if (!courseId) return;
     let cancelled = false;
     setCheckingFeedback(true);
     (async () => {
       try {
-        console.log('[CourseDetail] Checking feedback for course:', courseId);
         const exists = await checkVideoFeedback(courseId, 'intro', true);
-        console.log('[CourseDetail] Feedback exists:', exists);
-        if (!cancelled) {
-          setHasFeedback(exists);
-        }
+        if (!cancelled) setHasFeedback(exists);
       } catch (e) {
         console.error('[CourseDetail] Error checking feedback:', e);
-        if (!cancelled) {
-          setHasFeedback(false);
-        }
+        if (!cancelled && !feedbackSubmittedThisSession.current) setHasFeedback(false);
       } finally {
         if (!cancelled) setCheckingFeedback(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [courseId, course?.intro_video_path]);
+  }, [courseId]);
 
   // Load quizzes for the course and check completion status
   useEffect(() => {
@@ -168,8 +166,15 @@ export default function CourseDetailScreen() {
               const quizDetails = await getQuiz(firstQuiz.id);
               console.log('[CourseDetail] Quiz details loaded:', quizDetails);
               if (!cancelled) {
-                setSelectedQuiz(quizDetails);
-                // Update completion status from details if more accurate
+                setSelectedQuiz({
+                  ...quizDetails,
+                  questions:
+                    (quizDetails.questions && quizDetails.questions.length > 0)
+                      ? quizDetails.questions
+                      : (firstQuiz.questions && firstQuiz.questions.length > 0)
+                        ? firstQuiz.questions
+                        : quizDetails.questions,
+                });
                 const isCompletedFromDetails = quizDetails.is_completed ?? quizDetails.submission_status === 'completed' ?? (quizDetails.score !== undefined && quizDetails.score !== null);
                 if (isCompletedFromDetails !== isCompletedFromList) {
                   console.log('[CourseDetail] Updating quiz completion status from details:', isCompletedFromDetails);
@@ -178,7 +183,7 @@ export default function CourseDetailScreen() {
               }
             } catch (e) {
               console.error('[CourseDetail] Error loading quiz details:', e);
-              // Keep completion status from list
+              if (!cancelled) setSelectedQuiz(firstQuiz);
             }
           } else {
             setQuizCompleted(false);
@@ -236,10 +241,10 @@ export default function CourseDetailScreen() {
   }, [courseId]);
 
   const handleVideoEnd = async () => {
+    if (feedbackSubmittedThisSession.current) return;
     if (hasFeedback === null) {
-      // Still checking, wait a bit
       setTimeout(() => {
-        if (!hasFeedback) setShowFeedback(true);
+        if (!feedbackSubmittedThisSession.current) setShowFeedback(true);
       }, 500);
     } else if (!hasFeedback) {
       setShowFeedback(true);
@@ -272,8 +277,8 @@ export default function CourseDetailScreen() {
     }
   };
 
-  if (loading) return <ActivityIndicator style={styles.centered} size="large" color={COLORS.primary} />;
-  if (error || !course) return <Text style={styles.error}>{error || 'Course not found'}</Text>;
+  if (loading) return <View style={[styles.centered, { backgroundColor: c.background }]}><ActivityIndicator size="large" color={c.primary} /></View>;
+  if (error || !course) return <View style={[styles.centered, { backgroundColor: c.background }]}><Text style={[styles.error, { color: c.text }]}>{error || 'Course not found'}</Text></View>;
 
   const base = API_BASE ? `${API_BASE}`.replace(/\/+$/, '') : '';
   const introVideoUri = course.intro_video_path
@@ -292,7 +297,7 @@ export default function CourseDetailScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: c.background }]}
       contentContainerStyle={styles.contentContainer}
     >
       {/* Intro video – inline player (expo-video) */}
@@ -314,74 +319,120 @@ export default function CourseDetailScreen() {
         </View>
       ) : null}
 
-      {/* Video feedback – between player and course title */}
-      {introVideoUri && courseId && hasFeedback === false ? (
-        <TouchableOpacity
-          testID="rate-session-button"
-          style={styles.feedbackButton}
-          onPress={() => setShowFeedback(true)}
-          activeOpacity={0.8}
-        >
-          <Icon name="grading" size={20} color={COLORS.white} />
-          <Text style={styles.feedbackButtonText}>Rate this session</Text>
-        </TouchableOpacity>
-      ) : null}
-
-      {/* Quizzes button or completion message – below feedback button */}
-      {courseId && quizzes.length > 0 ? (
-        quizCompleted ? (
-          <View style={styles.quizCompletedContainer}>
+      {/* Video feedback – show in all courses with intro video; after submit show "Feedback submitted" */}
+      {courseId && (introVideoUri || hasFeedback === true) ? (
+        hasFeedback === true ? (
+          <View style={[styles.feedbackSubmittedRow, { backgroundColor: c.surfaceCard }]} testID="feedback-submitted">
             <Icon name="verified_user" size={20} color="#4CAF50" />
-            <Text style={styles.quizCompletedText}>Quiz Finished</Text>
+            <Text style={[styles.feedbackSubmittedText, { color: c.text }]}>Feedback submitted</Text>
           </View>
         ) : (
           <TouchableOpacity
-            style={styles.quizButton}
-            onPress={() => {
-              if (!quizCompleted && selectedQuiz) {
-                setShowQuiz(true);
-              }
-            }}
+            testID="rate-session-button"
+            style={[styles.feedbackButton, { backgroundColor: c.primary }]}
+            onPress={() => setShowFeedback(true)}
             activeOpacity={0.8}
-            disabled={quizCompleted === true}
-          >
-            <Icon name="quiz" size={20} color={COLORS.white} />
-            <Text style={styles.quizButtonText}>Quizzes</Text>
-          </TouchableOpacity>
-        )
-      ) : null}
-
-      {/* Assignments button or completion message – below quizzes */}
-      {courseId && assignments.length > 0 ? (
-        assignmentCompleted ? (
-          <View style={styles.assignmentCompletedContainer}>
-            <Icon name="verified_user" size={20} color="#4CAF50" />
-            <Text style={styles.assignmentCompletedText}>Assignment Finished</Text>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.assignmentButton}
-            onPress={() => {
-              if (!assignmentCompleted && selectedAssignment) {
-                setShowAssignment(true);
-              }
-            }}
-            activeOpacity={0.8}
-            disabled={assignmentCompleted === true}
           >
             <Icon name="grading" size={20} color={COLORS.white} />
-            <Text style={styles.assignmentButtonText}>Assignments</Text>
+            <Text style={styles.feedbackButtonText}>Rate this session</Text>
           </TouchableOpacity>
         )
       ) : null}
 
+      {/* Quizzes – always show section; button when available */}
+      {courseId && (
+        <View style={styles.quizAssignmentSection}>
+          {quizzes.length > 0 ? (
+            quizCompleted ? (
+              <View style={styles.quizCompletedContainer}>
+                <Icon name="verified_user" size={20} color="#4CAF50" />
+                <Text style={[styles.quizCompletedText, { color: c.text }]}>Quiz Finished</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.quizButton, { backgroundColor: c.primary }]}
+                onPress={async () => {
+                  if (!quizCompleted && selectedQuiz?.id) {
+                    if (__DEV__) console.log('[CourseDetail] Quizzes tapped – opening quiz modal');
+                    try {
+                      const full = await getQuiz(selectedQuiz.id);
+                      setSelectedQuiz({
+                        ...full,
+                        questions:
+                          (full.questions && full.questions.length > 0 ? full.questions : selectedQuiz.questions) ?? full.questions,
+                      });
+                    } catch (e) {
+                      console.error('[CourseDetail] Error loading quiz details:', e);
+                    }
+                    setShowQuiz(true);
+                  }
+                }}
+                activeOpacity={0.8}
+                disabled={quizCompleted === true}
+              >
+                <Icon name="quiz" size={20} color={c.white} />
+                <Text style={styles.quizButtonText}>Quizzes</Text>
+              </TouchableOpacity>
+            )
+          ) : (
+            <View style={[styles.quizAssignmentEmpty, { backgroundColor: c.surfaceCard }]}>
+              <Icon name="quiz" size={20} color={c.textDim} />
+              <Text style={[styles.quizAssignmentEmptyText, { color: c.textMuted }]}>No quizzes for this course</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Assignments – always show section; button when available */}
+      {courseId && (
+            <View style={styles.quizAssignmentSection}>
+          {assignments.length > 0 ? (
+            assignmentCompleted ? (
+              <View style={styles.assignmentCompletedContainer}>
+                <Icon name="verified_user" size={20} color="#4CAF50" />
+                <Text style={[styles.assignmentCompletedText, { color: c.text }]}>Assignment Finished</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.assignmentButton, { backgroundColor: c.primary }]}
+                onPress={async () => {
+                  if (!assignmentCompleted && selectedAssignment) {
+                    const needsDetails =
+                      !selectedAssignment.questions || selectedAssignment.questions.length === 0;
+                    if (needsDetails && selectedAssignment.id) {
+                      try {
+                        const full = await getAssignment(String(selectedAssignment.id));
+                        setSelectedAssignment(full);
+                      } catch (e) {
+                        console.error('[CourseDetail] Error loading assignment details:', e);
+                      }
+                    }
+                    setShowAssignment(true);
+                  }
+                }}
+                activeOpacity={0.8}
+                disabled={assignmentCompleted === true}
+              >
+                <Icon name="grading" size={20} color={c.white} />
+                <Text style={styles.assignmentButtonText}>Assignments</Text>
+              </TouchableOpacity>
+            )
+          ) : (
+            <View style={[styles.quizAssignmentEmpty, { backgroundColor: c.surfaceCard }]}>
+              <Icon name="grading" size={20} color={c.textDim} />
+              <Text style={[styles.quizAssignmentEmptyText, { color: c.textMuted }]}>No assignments for this course</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Course Details Section */}
-      <View style={styles.detailsSection}>
-        <Text style={styles.courseTitle}>{course.title}</Text>
+      <View style={[styles.detailsSection, { backgroundColor: c.background }]}>
+        <Text style={[styles.courseTitle, { color: c.text }]}>{course.title}</Text>
 
         {/* Instructor Info */}
         <View style={styles.instructorInfo}>
-          <View style={styles.instructorAvatar}>
+          <View style={[styles.instructorAvatar, { backgroundColor: c.surfaceCard }]}>
             {instructorPhotoUrl && !instructorPhotoError ? (
               <Image
                 source={{ uri: instructorPhotoUrl }}
@@ -393,35 +444,35 @@ export default function CourseDetailScreen() {
             )}
           </View>
           <View>
-            <Text style={styles.instructorLabel}>Instructor</Text>
-            <Text style={styles.instructorName}>{course.instructor_name || 'Not specified'}</Text>
+            <Text style={[styles.instructorLabel, { color: c.textMuted }]}>Instructor</Text>
+            <Text style={[styles.instructorName, { color: c.text }]}>{course.instructor_name || 'Not specified'}</Text>
           </View>
         </View>
 
         {/* Instructor Bio */}
         {course.instructor_bio && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About Instructor</Text>
-            <Text style={styles.sectionText}>{course.instructor_bio}</Text>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>About Instructor</Text>
+            <Text style={[styles.sectionText, { color: c.textMuted }]}>{course.instructor_bio}</Text>
           </View>
         )}
 
         {/* Module Description */}
         {course.description && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Module Description</Text>
-            <Text style={styles.sectionText}>{course.description}</Text>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Module Description</Text>
+            <Text style={[styles.sectionText, { color: c.textMuted }]}>{course.description}</Text>
           </View>
         )}
 
         {/* Course Objectives */}
         {course.objectives && course.objectives.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Course Objectives</Text>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Course Objectives</Text>
             {course.objectives.map((obj, idx) => (
               <View key={idx} style={styles.listItem}>
-                <Text style={styles.listBullet}>✓</Text>
-                <Text style={styles.listText}>{obj}</Text>
+                <Text style={[styles.listBullet, { color: c.primary }]}>✓</Text>
+                <Text style={[styles.listText, { color: c.text }]}>{obj}</Text>
               </View>
             ))}
           </View>
@@ -430,11 +481,11 @@ export default function CourseDetailScreen() {
         {/* Course Outcomes */}
         {course.course_outcomes && course.course_outcomes.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Course Outcomes</Text>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Course Outcomes</Text>
             {course.course_outcomes.map((out, idx) => (
               <View key={idx} style={styles.listItem}>
-                <Text style={styles.listBullet}>✓</Text>
-                <Text style={styles.listText}>{out}</Text>
+                <Text style={[styles.listBullet, { color: c.primary }]}>✓</Text>
+                <Text style={[styles.listText, { color: c.text }]}>{out}</Text>
               </View>
             ))}
           </View>
@@ -443,11 +494,11 @@ export default function CourseDetailScreen() {
         {/* Targeted Audience */}
         {course.ideal_for && course.ideal_for.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Targeted Audience</Text>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Targeted Audience</Text>
             {course.ideal_for.map((aud, idx) => (
               <View key={idx} style={styles.listItem}>
-                <Text style={styles.listBullet}>✓</Text>
-                <Text style={styles.listText}>{aud}</Text>
+                <Text style={[styles.listBullet, { color: c.primary }]}>✓</Text>
+                <Text style={[styles.listText, { color: c.text }]}>{aud}</Text>
               </View>
             ))}
           </View>
@@ -456,20 +507,20 @@ export default function CourseDetailScreen() {
         {/* Additional Resources */}
         {course.resources && course.resources.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Additional Resources</Text>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Additional Resources</Text>
             {course.resources.map((res, idx) => {
               const hasLink = !!res.link;
               return (
                 <TouchableOpacity
                   key={idx}
-                  style={styles.resourceItem}
+                  style={[styles.resourceItem, { borderColor: c.border }]}
                   activeOpacity={hasLink ? 0.7 : 1}
                   onPress={() => {
                     if (hasLink) Linking.openURL(res.link).catch(() => undefined);
                   }}
                   disabled={!hasLink}
                 >
-                  <Text style={[styles.resourceText, hasLink && styles.resourceLink]}>
+                  <Text style={[styles.resourceText, { color: c.text }, hasLink && { color: c.primary }]}>
                     {res.label || res.link || 'Resource'}
                   </Text>
                 </TouchableOpacity>
@@ -480,7 +531,7 @@ export default function CourseDetailScreen() {
 
         {/* Submit Review Section */}
         <View style={styles.reviewSection}>
-          <Text style={styles.sectionTitle}>Submit a Review</Text>
+          <Text style={[styles.sectionTitle, { color: c.text }]}>Submit a Review</Text>
           <View style={styles.starRating}>
             {[1, 2, 3, 4, 5].map((r) => (
               <TouchableOpacity
@@ -488,14 +539,14 @@ export default function CourseDetailScreen() {
                 onPress={() => setRating(r)}
                 style={styles.star}
               >
-                <Text style={[styles.starText, r <= rating && styles.starActive]}>★</Text>
+                <Text style={[styles.starText, { color: c.textDim }, r <= rating && styles.starActive]}>★</Text>
               </TouchableOpacity>
             ))}
           </View>
           <TextInput
-            style={styles.reviewTextarea}
+            style={[styles.reviewTextarea, { backgroundColor: c.surfaceCard, borderColor: c.border, color: c.text }]}
             placeholder="Write your review here..."
-            placeholderTextColor={COLORS.white60}
+            placeholderTextColor={c.textDim}
             value={reviewText}
             onChangeText={setReviewText}
             multiline
@@ -503,7 +554,7 @@ export default function CourseDetailScreen() {
             textAlignVertical="top"
           />
           <TouchableOpacity
-            style={[styles.submitReviewBtn, submittingReview && styles.submitReviewBtnDisabled]}
+            style={[styles.submitReviewBtn, { backgroundColor: c.primary }, submittingReview && styles.submitReviewBtnDisabled]}
             onPress={handleSubmitReview}
             disabled={submittingReview}
           >
@@ -516,13 +567,14 @@ export default function CourseDetailScreen() {
 
       {courseId && (
         <VideoFeedbackModal
-          isOpen={showFeedback && !hasFeedback}
+          isOpen={showFeedback && hasFeedback !== true && !feedbackSubmittedThisSession.current}
           onClose={() => setShowFeedback(false)}
           lectureTitle={course.title}
           courseId={courseId}
           lectureId="intro"
           isIntro={true}
           onSubmit={() => {
+            feedbackSubmittedThisSession.current = true;
             setHasFeedback(true);
             setShowFeedback(false);
           }}
@@ -531,16 +583,64 @@ export default function CourseDetailScreen() {
 
       {selectedQuiz && !quizCompleted && (
         <QuizModal
+          key={`quiz-${selectedQuiz.id}-${showQuiz}`}
           isOpen={showQuiz}
           onClose={() => setShowQuiz(false)}
           quiz={selectedQuiz}
-          onComplete={(score, total) => {
-            console.log('[CourseDetail] Quiz completed:', score, '/', total);
-            // Mark quiz as completed after submission
-            setQuizCompleted(true);
-            // Update selectedQuiz to reflect completion
-            setSelectedQuiz({ ...selectedQuiz, is_completed: true, score, total });
+          onComplete={async (response) => {
+            const score = response.score;
+            const total = response.total;
+            console.log('[CourseDetail] Quiz submitted:', score, '/', total, 'response:', response);
             setShowQuiz(false);
+            const quizId = selectedQuiz?.id != null ? String(selectedQuiz.id) : '';
+            if (!quizId) return;
+            const max = response.max_attempts ?? selectedQuiz?.max_attempts ?? 3;
+            const prevUsed = selectedQuiz?.attempt_count ?? 0;
+            const prevRemaining = selectedQuiz?.remaining_attempts ?? max;
+            const respUsed = response.attempt_count ?? response.attempts_used;
+            const respRemaining = response.remaining_attempts ?? response.attempts_remaining;
+            const used =
+              typeof respUsed === 'number' && respUsed > 0
+                ? respUsed
+                : prevUsed + 1;
+            const remaining =
+              typeof respRemaining === 'number' && respRemaining < max
+                ? respRemaining
+                : Math.max(0, prevRemaining - 1);
+            setSelectedQuiz((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    score,
+                    total,
+                    attempt_count: used,
+                    max_attempts: max,
+                    remaining_attempts: remaining,
+                    is_completed: response.passed === true,
+                    has_passed: response.passed === true,
+                  }
+                : null
+            );
+            try {
+              const fresh = await getQuiz(quizId);
+              setSelectedQuiz((prev) => ({
+                ...fresh,
+                questions:
+                  (fresh.questions && fresh.questions.length > 0 ? fresh.questions : prev?.questions) ?? fresh.questions,
+              }));
+              const remaining =
+                response.remaining_attempts ?? response.attempts_remaining ?? fresh.remaining_attempts;
+              const nowCompleted =
+                response.passed === true ||
+                fresh.is_completed === true ||
+                fresh.has_passed === true ||
+                (remaining !== undefined && remaining <= 0);
+              setQuizCompleted(nowCompleted);
+            } catch (e) {
+              console.error('[CourseDetail] Re-fetch quiz after submit:', e);
+              setSelectedQuiz((prev) => (prev ? { ...prev, score, total } : null));
+              setQuizCompleted(false);
+            }
           }}
         />
       )}
@@ -552,6 +652,10 @@ export default function CourseDetailScreen() {
           assignment={selectedAssignment}
           onStartAssignment={() => {
             console.log('[CourseDetail] Assignment started');
+          }}
+          onSubmitSuccess={() => {
+            setAssignmentCompleted(true);
+            setShowAssignment(false);
           }}
         />
       )}
@@ -608,6 +712,41 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  feedbackSubmittedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.5)',
+  },
+  feedbackSubmittedText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  quizAssignmentSection: {
+    marginBottom: 12,
+  },
+  quizAssignmentEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+  },
+  quizAssignmentEmptyText: {
+    fontSize: 14,
+    color: COLORS.white60,
   },
   quizButton: {
     flexDirection: 'row',
