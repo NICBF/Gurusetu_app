@@ -32,12 +32,9 @@ export interface VideoFeedbackCheckResponse {
 }
 
 /**
- * Check if user has already submitted feedback for a video
- * For intro videos: check by course_id and is_intro=true
- * For lecture videos: check by course_id and lecture_id
- * 
- * The API endpoint GET /api/courses/{course_id}/lectures/{lecture_id}/feedback
- * returns user-specific feedback when authenticated with JWT.
+ * Check if user has already submitted feedback for a video.
+ * Uses GET /api/courses/{course_id}/video-feedback-submitted which returns
+ * { submitted_keys: ["intro-{course_id}", "<lecture_uuid>", ...] } for the current user.
  */
 export async function checkVideoFeedback(
   courseId: string,
@@ -45,64 +42,23 @@ export async function checkVideoFeedback(
   isIntro?: boolean
 ): Promise<boolean> {
   try {
-    let endpoint = '';
+    const endpoint = `/courses/${courseId}/video-feedback-submitted`;
+    const { data } = await api.get<{ submitted_keys?: string[] }>(endpoint);
+    const keys = Array.isArray(data?.submitted_keys) ? data.submitted_keys : [];
+    const introKey = `intro-${courseId}`;
     if (isIntro) {
-      // For intro videos, use 'intro' as lecture_id
-      endpoint = `/courses/${courseId}/lectures/intro/feedback`;
-    } else if (lectureId) {
-      // For lecture videos, check by lecture_id
-      endpoint = `/courses/${courseId}/lectures/${lectureId}/feedback`;
-    } else {
-      return false;
+      const has = keys.includes(introKey);
+      if (__DEV__) console.log('[VideoFeedback] Intro submitted:', has, 'keys:', keys);
+      return has;
     }
-
-    console.log('[VideoFeedback] Checking endpoint:', endpoint);
-    const { data } = await api.get<VideoFeedbackCheckResponse | VideoFeedbackResponse | VideoFeedbackResponse[]>(
-      endpoint
-    );
-    console.log('[VideoFeedback] Response data:', data);
-
-    // Handle different response formats
-    if (Array.isArray(data)) {
-      // Array of feedback entries - check if any exist (user-specific if authenticated)
-      const hasFeedback = data.length > 0;
-      console.log('[VideoFeedback] Array response, has feedback:', hasFeedback);
-      return hasFeedback;
-    } else if (data && typeof data === 'object') {
-      // Single feedback object or check response
-      if ('exists' in data) {
-        console.log('[VideoFeedback] Exists field:', data.exists);
-        return !!data.exists;
-      }
-      if ('feedback' in data && data.feedback) {
-        console.log('[VideoFeedback] Feedback field exists');
-        return true;
-      }
-      // If it's a feedback object with course_id, it exists
-      if ('course_id' in data) {
-        const hasFeedback = data.course_id === courseId;
-        console.log('[VideoFeedback] Feedback object found, course_id matches:', hasFeedback);
-        return hasFeedback;
-      }
-      // If it has any feedback-related fields, consider it exists
-      if ('id' in data || 'quality_rating' in data || 'clarity_rating' in data) {
-        console.log('[VideoFeedback] Feedback object detected by fields');
-        return true;
-      }
+    if (lectureId) {
+      const has = keys.some((k) => k === lectureId || k === String(lectureId));
+      if (__DEV__) console.log('[VideoFeedback] Lecture submitted:', has, 'lectureId:', lectureId, 'keys:', keys);
+      return has;
     }
-    console.log('[VideoFeedback] No feedback found');
     return false;
   } catch (error) {
-    // If endpoint doesn't exist (404) or error, assume no feedback exists yet
-    if (error && typeof error === 'object' && 'response' in error) {
-      const status = (error as { response?: { status?: number } }).response?.status;
-      if (status === 404) {
-        // 404 means no feedback exists - this is expected for first-time users
-        console.log('[VideoFeedback] 404 - no feedback exists');
-        return false;
-      }
-    }
-    console.log('[VideoFeedback] Check feedback error (assuming no feedback):', error);
+    if (__DEV__) console.log('[VideoFeedback] Check error (assuming not submitted):', error);
     return false;
   }
 }
